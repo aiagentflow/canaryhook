@@ -3,15 +3,36 @@
 **Honeyfiles and canary tokens for AI coding agents.**
 
 canaryhook plants decoy credential files that nothing in your project should ever
-read, then trips the moment an agent reads one or lets a canary string leave the
-machine. It is a smoke detector for AI coding sessions: no model, no signatures,
-and close to zero false positives by construction.
+read, then blocks and records the moment an agent reads one or lets a canary
+string leave the machine. It is a smoke detector for AI coding sessions: no
+model, no signatures, and close to zero false positives by construction.
 
 Part of the [aiagentflow](https://aiagentflow.dev) suite.
 
-> **Status: pre-release.** `0.0.1` reserves the name and ships the CLI surface
-> only. The commands below are specified but not implemented yet. Watch the repo
-> if you want the first working release.
+## Install
+
+```bash
+npm install -g canaryhook
+cd /your/project
+canaryhook init
+```
+
+`init` plants four decoys, registers a `PreToolUse` hook in
+`.claude/settings.json` (merging with hooks you already have), and adds the
+decoys plus `.canaryhook/` to `.gitignore`.
+
+## Commands
+
+```bash
+canaryhook init      # plant decoys, register the hook
+canaryhook status    # are decoys planted, is the hook wired
+canaryhook alerts    # list recorded trips
+canaryhook verify    # exit non-zero if anything tripped (for CI)
+canaryhook clean     # remove decoys, unregister the hook
+```
+
+Flags: `--json` on every command, `--commit` to track decoys in git instead of
+ignoring them, `--force` to replant, `--keep-alerts` on clean.
 
 ## Why
 
@@ -19,49 +40,61 @@ Signature scanning fails against an agent that rewrites its own code, and the
 attack surface around coding agents keeps growing: prompt injection in a fetched
 page or a GitHub issue, a hostile MCP server tool, a dependency `postinstall`
 script, or simply your own agent being overzealous and reading a credentials file
-into its context.
+into its context, where it then lands in a transcript you push somewhere.
 
 canaryhook does not look at the attacker at all. The trap lives in the
 environment. An attacker cannot tell a decoy credential from a real one without
 reading it, and reading it is the trip.
 
-## Planned commands
+## How it works
 
-```bash
-canaryhook init      # plant decoy files, register the tool-call hooks
-canaryhook status    # are decoys planted, are hooks wired
-canaryhook alerts    # list recorded trips (--json)
-canaryhook verify    # exit non-zero if a decoy was read or a canary leaked
-canaryhook clean     # remove decoys, unregister hooks
-```
+`canaryhook init` plants these, each holding a unique, realistic, dead fake
+secret:
 
-## How it will work
+| File | Bait |
+| --- | --- |
+| `.env.backup` | AWS-shaped access key and secret |
+| `credentials.json.bak` | Stripe-shaped live secret key |
+| `deploy_key.old` | OpenSSH private key block |
+| `db_dump_2026.sql` | API token in an INSERT statement |
 
-`canaryhook init` plants decoys such as `.env.backup`, `deploy_key.old`,
-`db_dump_2024.sql` and `credentials.json.bak`, each holding realistic but dead
-fake secrets. Nothing in your code, build, lint or test path references these
-files, so a hit is almost never a false positive. The canary strings are recorded
-in `.canaryhook/canaries.json`.
+Nothing in your code, build, lint or test path references these files, so a hit
+is almost never a false positive. The canary strings are recorded in
+`.canaryhook/canaries.json`, which is itself watched.
 
 Two detection paths then run on every tool call:
 
-- **Read path.** A `PreToolUse` hook watches for any tool touching a decoy path,
-  whether that is a direct file read, a `grep -r`, or a `tar` of the project.
-- **Exfil path.** The same hook checks whether a canary string appears in any
-  outgoing tool input: a shell argument, a fetch URL or body, a file write, a
-  commit message. You do not have to enumerate every way a file can be read, only
+- **Read path.** The hook trips when a call names a decoy path, whether that is
+  `Read` with a `file_path`, a shell `cat`, or anything else that mentions it.
+- **Exfil path.** The hook trips when a canary string appears anywhere in the
+  call's input: a shell argument, a fetch URL or body, a file write, a commit
+  message. You do not have to enumerate every way a file can be read, only
   notice the value leaving.
 
-On a trip, canaryhook blocks the call, prints which decoy and which tool, appends
-to `.canaryhook/alerts.jsonl`, and exits non-zero so it fails in CI too.
+On a trip, canaryhook returns a `deny` decision so the tool call never runs,
+tells the agent the file was a tripwire and not to retry, and appends to
+`.canaryhook/alerts.jsonl`:
 
-Decoys are added to `.gitignore` by default. Use `--commit` to track them.
+```json
+{"at":"2026-10-14T21:53:40.809Z","reason":"canary-exfil","decoy":".env.backup","tool":"Bash","detail":"canary string from .env.backup appears in the tool call"}
+```
+
+A malformed hook payload never blocks a call, so a broken install fails open
+rather than wedging your session.
+
+## CI
+
+```yaml
+- run: npx canaryhook verify
+```
 
 ## Limits
 
 canaryhook detects, it does not prevent. An attacker that ignores the decoys is
-not caught, and a targeted one that reads only the real `.env` walks past. It is
-a smoke detector, not a lock. Its value is that it costs nothing to run, needs no
+not caught, and a targeted one that reads only the real `.env` walks past. A
+sweep like `grep -r AKIA .` reads the decoys without naming them, so it only
+trips on the exfil path, when a canary string shows up in a later call. It is a
+smoke detector, not a lock. Its value is that it costs nothing to run, needs no
 model, and stays quiet enough that you leave it installed.
 
 ## License

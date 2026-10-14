@@ -1,6 +1,6 @@
 {
   "name": "canaryhook",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Honeyfiles and canary tokens for AI coding agents. Plants decoy credentials your agents should never touch, then trips on any read or exfiltration.",
   "type": "module",
   "bin": {
