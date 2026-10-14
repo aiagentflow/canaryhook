@@ -1,10 +1,10 @@
 {
-  "name": "canarykit",
+  "name": "canaryhook",
   "version": "0.0.1",
   "description": "Honeyfiles and canary tokens for AI coding agents. Plants decoy credentials your agents should never touch, then trips on any read or exfiltration.",
   "type": "module",
   "bin": {
-    "canarykit": "./dist/index.js"
+    "canaryhook": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "files": [
@@ -12,13 +12,13 @@
     "README.md",
     "LICENSE"
   ],
-  "homepage": "https://aiagentflow.dev/canarykit",
+  "homepage": "https://aiagentflow.dev/canaryhook",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aiagentflow/canarykit.git"
+    "url": "git+https://github.com/aiagentflow/canaryhook.git"
   },
   "bugs": {
-    "url": "https://github.com/aiagentflow/canarykit/issues"
+    "url": "https://github.com/aiagentflow/canaryhook/issues"
   },
   "license": "MIT",
   "engines": {

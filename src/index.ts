@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { VERSION } from "./version.js";
 
-const HELP = `canarykit ${VERSION}: honeyfiles and canary tokens for AI coding agents
+const HELP = `canaryhook ${VERSION}: honeyfiles and canary tokens for AI coding agents
 
 Usage
-  canarykit <command> [options]
+  canaryhook <command> [options]
 
 Commands
   init        Plant decoy credential files and register the tool-call hooks
@@ -20,7 +20,7 @@ Options
 
 Pre-release: 0.0.x reserves the name and ships the CLI surface only.
 The commands above are not implemented yet. Follow along at
-https://github.com/aiagentflow/canarykit
+https://github.com/aiagentflow/canaryhook
 `;
 
 const PLANNED = ["init", "status", "alerts", "verify", "clean"];
@@ -41,13 +41,13 @@ function main(argv: string[]): number {
   }
 
   if (PLANNED.includes(command)) {
-    const message = `canarykit ${command} is not implemented in ${VERSION}`;
+    const message = `canaryhook ${command} is not implemented in ${VERSION}`;
     if (json) {
       process.stdout.write(
         `${JSON.stringify({ command, implemented: false, version: VERSION, message })}\n`,
       );
     } else {
-      process.stderr.write(`${message}\nSee https://github.com/aiagentflow/canarykit\n`);
+      process.stderr.write(`${message}\nSee https://github.com/aiagentflow/canaryhook\n`);
     }
     return 2;
   }

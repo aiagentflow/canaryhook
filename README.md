@@ -1,8 +1,8 @@
-# canarykit
+# canaryhook
 
 **Honeyfiles and canary tokens for AI coding agents.**
 
-canarykit plants decoy credential files that nothing in your project should ever
+canaryhook plants decoy credential files that nothing in your project should ever
 read, then trips the moment an agent reads one or lets a canary string leave the
 machine. It is a smoke detector for AI coding sessions: no model, no signatures,
 and close to zero false positives by construction.
@@ -21,27 +21,27 @@ page or a GitHub issue, a hostile MCP server tool, a dependency `postinstall`
 script, or simply your own agent being overzealous and reading a credentials file
 into its context.
 
-canarykit does not look at the attacker at all. The trap lives in the
+canaryhook does not look at the attacker at all. The trap lives in the
 environment. An attacker cannot tell a decoy credential from a real one without
 reading it, and reading it is the trip.
 
 ## Planned commands
 
 ```bash
-canarykit init      # plant decoy files, register the tool-call hooks
-canarykit status    # are decoys planted, are hooks wired
-canarykit alerts    # list recorded trips (--json)
-canarykit verify    # exit non-zero if a decoy was read or a canary leaked
-canarykit clean     # remove decoys, unregister hooks
+canaryhook init      # plant decoy files, register the tool-call hooks
+canaryhook status    # are decoys planted, are hooks wired
+canaryhook alerts    # list recorded trips (--json)
+canaryhook verify    # exit non-zero if a decoy was read or a canary leaked
+canaryhook clean     # remove decoys, unregister hooks
 ```
 
 ## How it will work
 
-`canarykit init` plants decoys such as `.env.backup`, `deploy_key.old`,
+`canaryhook init` plants decoys such as `.env.backup`, `deploy_key.old`,
 `db_dump_2024.sql` and `credentials.json.bak`, each holding realistic but dead
 fake secrets. Nothing in your code, build, lint or test path references these
 files, so a hit is almost never a false positive. The canary strings are recorded
-in `.canarykit/canaries.json`.
+in `.canaryhook/canaries.json`.
 
 Two detection paths then run on every tool call:
 
@@ -52,14 +52,14 @@ Two detection paths then run on every tool call:
   commit message. You do not have to enumerate every way a file can be read, only
   notice the value leaving.
 
-On a trip, canarykit blocks the call, prints which decoy and which tool, appends
-to `.canarykit/alerts.jsonl`, and exits non-zero so it fails in CI too.
+On a trip, canaryhook blocks the call, prints which decoy and which tool, appends
+to `.canaryhook/alerts.jsonl`, and exits non-zero so it fails in CI too.
 
 Decoys are added to `.gitignore` by default. Use `--commit` to track them.
 
 ## Limits
 
-canarykit detects, it does not prevent. An attacker that ignores the decoys is
+canaryhook detects, it does not prevent. An attacker that ignores the decoys is
 not caught, and a targeted one that reads only the real `.env` walks past. It is
 a smoke detector, not a lock. Its value is that it costs nothing to run, needs no
 model, and stays quiet enough that you leave it installed.
