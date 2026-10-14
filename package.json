@@ -1,0 +1,49 @@
+{
+  "name": "canarykit",
+  "version": "0.0.1",
+  "description": "Honeyfiles and canary tokens for AI coding agents. Plants decoy credentials your agents should never touch, then trips on any read or exfiltration.",
+  "type": "module",
+  "bin": {
+    "canarykit": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "homepage": "https://aiagentflow.dev/canarykit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aiagentflow/canarykit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aiagentflow/canarykit/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "security",
+    "canary-token",
+    "honeyfile",
+    "honeytoken",
+    "ai-agents",
+    "prompt-injection",
+    "claude-code",
+    "mcp",
+    "cli",
+    "exfiltration"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.8.0"
+  }
+}
