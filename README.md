@@ -8,6 +8,17 @@ string leave the machine. It is a smoke detector for AI coding sessions: no
 model, no signatures, and close to zero false positives by construction.
 
 Part of the [aiagentflow](https://aiagentflow.dev) suite.
+Website: **[aiagentflow.dev/canaryhook](https://aiagentflow.dev/canaryhook)**
+
+<p align="center">
+  <strong>canaryhook init</strong><br>
+  <img src="assets/demos/demo-init.gif" alt="canaryhook init demo" width="640">
+</p>
+
+<p align="center">
+  <strong>the trip</strong>: a credential hunt, denied and recorded<br>
+  <img src="assets/demos/demo-trip.gif" alt="canaryhook trip demo" width="640">
+</p>
 
 ## Install
 
@@ -15,6 +26,12 @@ Part of the [aiagentflow](https://aiagentflow.dev) suite.
 npm install -g canaryhook
 cd /your/project
 canaryhook init
+```
+
+Or with Homebrew:
+
+```bash
+brew install aiagentflow/tap/canaryhook
 ```
 
 `init` plants four decoys, registers a `PreToolUse` hook in
