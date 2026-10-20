@@ -44,6 +44,7 @@ decoys plus `.canaryhook/` to `.gitignore`.
 canaryhook init      # plant decoys, register the hook
 canaryhook status    # are decoys planted, is the hook wired
 canaryhook alerts    # list recorded trips
+canaryhook doctor    # fire a test payload through the hook to prove it is wired
 canaryhook verify    # exit non-zero if anything tripped (for CI)
 canaryhook clean     # remove decoys, unregister the hook
 ```
@@ -98,7 +99,9 @@ tells the agent the file was a tripwire and not to retry, and appends to
 ```
 
 A malformed hook payload never blocks a call, so a broken install fails open
-rather than wedging your session.
+rather than wedging your session. Failing open means a broken install is a
+quiet one, so `canaryhook doctor` runs the registered hook command for real,
+with a planted payload on stdin, and tells you whether the deny came back.
 
 ## CI
 

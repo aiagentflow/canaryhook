@@ -175,14 +175,18 @@ export async function runHook(): Promise<number> {
   if (!hit) return 0;
 
   const tool = input.tool_name ?? "unknown";
-  appendAlert(root, {
-    at: new Date().toISOString(),
-    reason: hit.reason,
-    decoy: hit.decoy,
-    tool,
-    detail: hit.detail,
-    sessionId: input.session_id,
-  });
+  // canaryhook doctor fires a real payload through this command to prove the
+  // hook is wired, and must not leave a trip in the record for it.
+  if (process.env.CANARYHOOK_DRY_RUN !== "1") {
+    appendAlert(root, {
+      at: new Date().toISOString(),
+      reason: hit.reason,
+      decoy: hit.decoy,
+      tool,
+      detail: hit.detail,
+      sessionId: input.session_id,
+    });
+  }
 
   process.stdout.write(
     `${JSON.stringify({
