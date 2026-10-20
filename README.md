@@ -85,8 +85,9 @@ Two detection paths then run on every tool call:
   `Read` with a `file_path`, a shell `cat`, or anything else that mentions it.
 - **Exfil path.** The hook trips when a canary string appears anywhere in the
   call's input: a shell argument, a fetch URL or body, a file write, a commit
-  message. You do not have to enumerate every way a file can be read, only
-  notice the value leaving.
+  message. It matches the string as written, lowercased, base64 or hex encoded,
+  so wrapping the value on the way out does not hide it. You do not have to
+  enumerate every way a file can be read, only notice the value leaving.
 
 On a trip, canaryhook returns a `deny` decision so the tool call never runs,
 tells the agent the file was a tripwire and not to retry, and appends to
