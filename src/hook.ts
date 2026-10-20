@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { appendAlert, readState, type Alert, type Decoy } from "./state.js";
 import { STATE_DIR, STATE_FILE } from "./state.js";
 
@@ -12,6 +13,44 @@ interface Hit {
   reason: Alert["reason"];
   decoy: string;
   detail: string;
+}
+
+/** Characters that can continue a path segment, so a match inside one is not a hit. */
+const PATH_CHAR = /[A-Za-z0-9_.-]/;
+
+/**
+ * A decoy path counts as mentioned only when it stands on its own, not when it
+ * happens to sit inside a longer name: `.env.backups` and `notes/.env.backup.md`
+ * are other files, and tripping on them would be a false positive.
+ */
+export function mentionsPath(haystack: string, path: string): boolean {
+  for (let from = 0; ; from += 1) {
+    const at = haystack.indexOf(path, from);
+    if (at < 0) return false;
+    const before = haystack[at - 1];
+    const after = haystack[at + path.length];
+    const bounded =
+      (before === undefined || !PATH_CHAR.test(before)) &&
+      (after === undefined || !PATH_CHAR.test(after));
+    if (bounded) return true;
+    from = at;
+  }
+}
+
+/** Fields the known tools use to name the file they are about to touch. */
+const PATH_FIELDS = ["file_path", "filePath", "path", "notebook_path"];
+
+/**
+ * Writing a decoy path into .gitignore is canaryhook's own bookkeeping, and
+ * nothing is read or leaked by it, so it must not trip the read path. Canary
+ * strings are still caught: this only runs after the exfil check.
+ */
+function isGitignoreEdit(toolInput: unknown): boolean {
+  if (!toolInput || typeof toolInput !== "object") return false;
+  const fields = toolInput as Record<string, unknown>;
+  return PATH_FIELDS.some(
+    (field) => typeof fields[field] === "string" && basename(fields[field] as string) === ".gitignore",
+  );
 }
 
 function readStdin(): Promise<string> {
@@ -46,9 +85,11 @@ export function inspect(decoys: Decoy[], toolInput: unknown): Hit | null {
     }
   }
 
+  if (isGitignoreEdit(toolInput)) return null;
+
   const stateFile = `${STATE_DIR}/${STATE_FILE}`;
   for (const path of decoys.map((d) => d.path)) {
-    if (haystack.includes(path)) {
+    if (mentionsPath(haystack, path)) {
       return {
         reason: "decoy-read",
         decoy: path,
@@ -56,7 +97,7 @@ export function inspect(decoys: Decoy[], toolInput: unknown): Hit | null {
       };
     }
   }
-  if (haystack.includes(stateFile)) {
+  if (mentionsPath(haystack, stateFile)) {
     return {
       reason: "decoy-read",
       decoy: stateFile,

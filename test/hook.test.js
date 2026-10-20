@@ -47,3 +47,32 @@ test("accepts a plain string tool input", () => {
 test("passes every call when no decoys are planted", () => {
   assert.equal(inspect([], { command: "cat .env.backup" }), null);
 });
+
+test("passes a longer name that merely contains a decoy path", () => {
+  assert.equal(inspect(decoys, { file_path: "notes/.env.backup.md" }), null);
+  assert.equal(inspect(decoys, { command: "ls .env.backups" }), null);
+  assert.equal(inspect(decoys, { file_path: "src/my_credentials.json.bak" }), null);
+});
+
+test("still trips on a decoy named with a directory prefix or in quotes", () => {
+  assert.equal(inspect(decoys, { file_path: "/home/me/project/.env.backup" })?.reason, "decoy-read");
+  assert.equal(inspect(decoys, { command: "cat '.env.backup'" })?.reason, "decoy-read");
+  assert.equal(inspect(decoys, { command: "cat ../.env.backup" })?.reason, "decoy-read");
+  assert.equal(inspect(decoys, { command: "cat .env.backup | head" })?.reason, "decoy-read");
+});
+
+test("passes a .gitignore edit that lists the decoy paths", () => {
+  const content = "node_modules/\n.canaryhook/\n.env.backup\ncredentials.json.bak\n";
+  assert.equal(inspect(decoys, { file_path: ".gitignore", content }), null);
+  assert.equal(inspect(decoys, { file_path: "/home/me/project/.gitignore", content }), null);
+});
+
+test("still trips when a canary string is written into .gitignore", () => {
+  const hit = inspect(decoys, { file_path: ".gitignore", content: decoys[0].token });
+  assert.equal(hit?.reason, "canary-exfil");
+});
+
+test("trips on a read of a decoy even when .gitignore is mentioned elsewhere", () => {
+  const hit = inspect(decoys, { command: "cat .gitignore .env.backup" });
+  assert.equal(hit?.reason, "decoy-read");
+});
