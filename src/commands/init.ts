@@ -96,8 +96,8 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
   for (const decoy of decoys) process.stdout.write(`  ${decoy.path}  (${decoy.kind})\n`);
   process.stdout.write(
     hookAdded
-      ? `\nRegistered the PreToolUse hook in ${SETTINGS_PATH}.\n`
-      : `\nPreToolUse hook was already registered in ${SETTINGS_PATH}.\n`,
+      ? `\nRegistered the PreToolUse and SessionStart hooks in ${SETTINGS_PATH}.\n`
+      : `\nThe hooks were already registered in ${SETTINGS_PATH}.\n`,
   );
   if (ignored) process.stdout.write("Added the decoys and .canaryhook/ to .gitignore.\n");
   if (options.commit) process.stdout.write("Left .gitignore alone, as --commit was passed.\n");

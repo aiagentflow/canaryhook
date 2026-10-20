@@ -72,3 +72,28 @@ test("unregister reports nothing removed when the hook is not there", () => {
   assert.equal(unregister(project()), false);
   assert.equal(unregister(project({ hooks: {} })), false);
 });
+
+test("registers the session hook alongside the tool-call hook", () => {
+  const root = project();
+  assert.equal(register(root), true);
+  const after = read(root);
+  assert.equal(after.hooks.SessionStart[0].hooks[0].command, "canaryhook session-start");
+  assert.equal("matcher" in after.hooks.SessionStart[0], false);
+});
+
+test("adds only the hook that is missing", () => {
+  const root = project({
+    hooks: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: HOOK_COMMAND }] }] },
+  });
+  assert.equal(register(root), true);
+  assert.equal(read(root).hooks.PreToolUse.length, 1);
+  assert.equal(read(root).hooks.SessionStart.length, 1);
+  assert.equal(register(root), false);
+});
+
+test("unregister removes both hooks", () => {
+  const root = project();
+  register(root);
+  assert.equal(unregister(root), true);
+  assert.deepEqual(read(root), {});
+});

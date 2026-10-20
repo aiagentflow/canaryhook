@@ -34,9 +34,9 @@ Or with Homebrew:
 brew install aiagentflow/tap/canaryhook
 ```
 
-`init` plants four decoys, registers a `PreToolUse` hook in
-`.claude/settings.json` (merging with hooks you already have), and adds the
-decoys plus `.canaryhook/` to `.gitignore`.
+`init` plants four decoys, registers a `PreToolUse` hook and a `SessionStart`
+hook in `.claude/settings.json` (merging with hooks you already have), and adds
+the decoys plus `.canaryhook/` to `.gitignore`.
 
 ## Commands
 
@@ -97,6 +97,9 @@ tells the agent the file was a tripwire and not to retry, and appends to
 ```json
 {"at":"2026-10-14T21:53:40.809Z","reason":"canary-exfil","decoy":".env.backup","tool":"Bash","detail":"canary string from .env.backup appears in the tool call"}
 ```
+
+Recorded trips are read back to the agent at the start of the next session, so
+a trip you were not watching for does not sit unnoticed in the file.
 
 A malformed hook payload never blocks a call, so a broken install fails open
 rather than wedging your session. Failing open means a broken install is a
