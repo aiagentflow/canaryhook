@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { alerts } from "./commands/alerts.js";
 import { clean } from "./commands/clean.js";
+import { doctor } from "./commands/doctor.js";
 import { init } from "./commands/init.js";
 import { status } from "./commands/status.js";
 import { verify } from "./commands/verify.js";
@@ -16,6 +17,7 @@ Commands
   init        Plant decoy credential files and register the tool-call hook
   status      Show whether decoys are planted and the hook is wired
   alerts      List recorded trips
+  doctor      Fire a test payload through the hook to prove it is wired
   verify      Exit non-zero if a decoy was read or a canary leaked
   clean       Remove planted decoys and unregister the hook
   hook        Internal: read a PreToolUse payload on stdin and judge it
@@ -56,6 +58,8 @@ async function main(argv: string[]): Promise<number> {
       return status(root, { json });
     case "alerts":
       return alerts(root, { json });
+    case "doctor":
+      return doctor(root, { json });
     case "verify":
       return verify(root, { json });
     case "clean":
