@@ -5,6 +5,7 @@ import { doctor } from "./commands/doctor.js";
 import { init } from "./commands/init.js";
 import { status } from "./commands/status.js";
 import { verify } from "./commands/verify.js";
+import { sessionStart } from "./commands/session.js";
 import { runHook } from "./hook.js";
 import { VERSION } from "./version.js";
 
@@ -20,7 +21,8 @@ Commands
   doctor      Fire a test payload through the hook to prove it is wired
   verify      Exit non-zero if a decoy was read or a canary leaked
   clean       Remove planted decoys and unregister the hook
-  hook        Internal: read a PreToolUse payload on stdin and judge it
+  hook           Internal: read a PreToolUse payload on stdin and judge it
+  session-start  Internal: report outstanding trips at the start of a session
 
 Options
   --json           Machine-readable output
@@ -52,6 +54,8 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case "hook":
       return runHook();
+    case "session-start":
+      return sessionStart(root);
     case "init":
       return init(root, { json, commit: has("--commit"), force: has("--force") });
     case "status":
