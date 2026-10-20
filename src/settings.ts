@@ -21,14 +21,25 @@ interface Settings {
   [key: string]: unknown;
 }
 
+/** Raised instead of silently replacing settings canaryhook cannot parse. */
+export class SettingsError extends Error {}
+
 function load(root: string): Settings {
   const path = join(root, SETTINGS_PATH);
   if (!existsSync(path)) return {};
+  let parsed: unknown;
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as Settings;
+    parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch {
-    return {};
+    parsed = undefined;
   }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new SettingsError(
+      `${SETTINGS_PATH} is not a JSON object. canaryhook will not overwrite it: ` +
+        `fix or move the file, then run again.`,
+    );
+  }
+  return parsed as Settings;
 }
 
 function save(root: string, settings: Settings): void {

@@ -73,6 +73,21 @@ export function readAlerts(root: string): Alert[] {
     });
 }
 
+/**
+ * True when the file at a decoy's path still holds that decoy's canary string.
+ * Ownership has to be proven before removing anything: a recorded path may
+ * since have been replaced by a real file of the user's.
+ */
+export function isDecoyFile(root: string, decoy: Decoy): boolean {
+  const path = join(root, decoy.path);
+  if (!existsSync(path)) return false;
+  try {
+    return readFileSync(path, "utf8").includes(decoy.token);
+  } catch {
+    return false;
+  }
+}
+
 /** Uppercase alphanumeric run, the shape most cloud credentials take. */
 export function randomToken(length: number): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
