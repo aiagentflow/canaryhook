@@ -88,11 +88,28 @@ export function isDecoyFile(root: string, decoy: Decoy): boolean {
   }
 }
 
-/** Uppercase alphanumeric run, the shape most cloud credentials take. */
-export function randomToken(length: number): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+function randomFrom(alphabet: string, length: number): string {
   const bytes = randomBytes(length);
   let out = "";
   for (let i = 0; i < length; i += 1) out += alphabet[bytes[i] % alphabet.length];
   return out;
+}
+
+/** Uppercase alphanumeric run, the shape of an AWS access key id. */
+export function randomToken(length: number): string {
+  return randomFrom("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", length);
+}
+
+/** Mixed-case alphanumeric run, the shape of most API keys and tokens. */
+export function randomKey(length: number): string {
+  return randomFrom("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", length);
+}
+
+/**
+ * Base64 alphabet, for the values that are really encoded bytes: an AWS secret
+ * access key, the body of a private key. A decoy only works while it looks
+ * like the real thing.
+ */
+export function randomBase64(length: number): string {
+  return randomFrom("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", length);
 }

@@ -62,13 +62,6 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
   }
 
   const decoys = built.map((b) => b.decoy);
-  writeState(root, {
-    version: 1,
-    created: new Date().toISOString(),
-    decoys,
-    hookRegistered: false,
-  });
-
   const hookAdded = register(root);
   writeState(root, {
     version: 1,
