@@ -1,4 +1,4 @@
-import { randomToken, type Decoy } from "./state.js";
+import { randomBase64, randomKey, randomToken, type Decoy } from "./state.js";
 
 interface Template {
   path: string;
@@ -22,7 +22,7 @@ const TEMPLATES: Template[] = [
       [
         "# superseded 2026-03-11, kept until the rotation is signed off",
         "AWS_ACCESS_KEY_ID=" + token,
-        "AWS_SECRET_ACCESS_KEY=" + randomToken(40),
+        "AWS_SECRET_ACCESS_KEY=" + randomBase64(40),
         "AWS_REGION=ap-southeast-1",
         "",
       ].join("\n"),
@@ -30,7 +30,7 @@ const TEMPLATES: Template[] = [
   {
     path: "credentials.json.bak",
     kind: "json",
-    token: () => `sk_live_${randomToken(24)}`,
+    token: () => `sk_live_${randomKey(24)}`,
     body: (token) =>
       `${JSON.stringify(
         {
@@ -46,13 +46,13 @@ const TEMPLATES: Template[] = [
   {
     path: "deploy_key.old",
     kind: "sshkey",
-    token: () => randomToken(32),
+    token: () => randomBase64(32),
     body: (token) =>
       [
         "-----BEGIN OPENSSH PRIVATE KEY-----",
         `b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2${token}`,
-        randomToken(64),
-        randomToken(64),
+        randomBase64(64),
+        randomBase64(64),
         "-----END OPENSSH PRIVATE KEY-----",
         "",
       ].join("\n"),
@@ -60,7 +60,7 @@ const TEMPLATES: Template[] = [
   {
     path: "db_dump_2026.sql",
     kind: "sql",
-    token: () => randomToken(28),
+    token: () => randomKey(28),
     body: (token) =>
       [
         "-- partial dump, staging replica",
