@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildDecoys } from "../canaries.js";
-import { register, SETTINGS_PATH } from "../settings.js";
-import { readState, writeState, STATE_DIR, type Decoy } from "../state.js";
+import { isRegistered, register, SettingsError, SETTINGS_PATH } from "../settings.js";
+import { isDecoyFile, readState, writeState, STATE_DIR, type Decoy } from "../state.js";
 
 const IGNORE_MARKER = "# canaryhook decoys";
 
@@ -16,23 +16,47 @@ function updateGitignore(root: string, decoys: Decoy[]): boolean {
   return true;
 }
 
+function fail(message: string, json: boolean): number {
+  if (json) process.stdout.write(`${JSON.stringify({ ok: false, message })}\n`);
+  else process.stderr.write(`${message}\n`);
+  return 1;
+}
+
 export function init(root: string, options: { json: boolean; commit: boolean; force: boolean }): number {
   const existing = readState(root);
   if (existing && !options.force) {
-    const message = `canaryhook is already initialized in ${root}. Use --force to replant.`;
-    if (options.json) process.stdout.write(`${JSON.stringify({ ok: false, message })}\n`);
-    else process.stderr.write(`${message}\n`);
-    return 1;
+    return fail(`canaryhook is already initialized in ${root}. Use --force to replant.`, options.json);
+  }
+
+  // Read the settings before planting anything, so a settings file canaryhook
+  // cannot parse stops the run instead of leaving half an install behind.
+  try {
+    isRegistered(root);
+  } catch (error) {
+    if (error instanceof SettingsError) return fail(error.message, options.json);
+    throw error;
   }
 
   if (existing) {
     for (const decoy of existing.decoys) {
-      const path = join(root, decoy.path);
-      if (existsSync(path)) unlinkSync(path);
+      if (isDecoyFile(root, decoy)) unlinkSync(join(root, decoy.path));
     }
   }
 
   const built = buildDecoys();
+  // Anything still sitting at a decoy path is a real file of the user's, since
+  // decoys recorded in the previous state were just removed. Never clobber it.
+  const collisions = built
+    .map((b) => b.decoy.path)
+    .filter((path) => existsSync(join(root, path)));
+  if (collisions.length > 0) {
+    return fail(
+      `These files already exist and are not canaryhook decoys: ${collisions.join(", ")}. ` +
+        `Move or rename them, then run canaryhook init again.`,
+      options.json,
+    );
+  }
+
   for (const { decoy, body } of built) {
     writeFileSync(join(root, decoy.path), body, "utf8");
   }

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { isRegistered, SETTINGS_PATH } from "../settings.js";
+import { isRegistered, SettingsError, SETTINGS_PATH } from "../settings.js";
 import { readAlerts, readState } from "../state.js";
 
 export function status(root: string, options: { json: boolean }): number {
@@ -17,7 +17,14 @@ export function status(root: string, options: { json: boolean }): number {
     kind: decoy.kind,
     planted: existsSync(join(root, decoy.path)),
   }));
-  const hook = isRegistered(root);
+  let hook = false;
+  let settingsProblem: string | null = null;
+  try {
+    hook = isRegistered(root);
+  } catch (error) {
+    if (!(error instanceof SettingsError)) throw error;
+    settingsProblem = error.message;
+  }
   const alerts = readAlerts(root);
   const missing = decoys.filter((d) => !d.planted).length;
   const healthy = hook && missing === 0;
@@ -31,6 +38,7 @@ export function status(root: string, options: { json: boolean }): number {
         settings: SETTINGS_PATH,
         decoys,
         alerts: alerts.length,
+        settingsProblem,
         healthy,
       })}\n`,
     );
@@ -44,6 +52,7 @@ export function status(root: string, options: { json: boolean }): number {
     process.stdout.write(`  ${decoy.planted ? "ok     " : "MISSING"} ${decoy.path}\n`);
   }
   process.stdout.write(`Alerts       ${alerts.length}\n`);
-  if (!healthy) process.stdout.write("\nRun canaryhook init --force to repair.\n");
+  if (settingsProblem) process.stdout.write(`\n${settingsProblem}\n`);
+  else if (!healthy) process.stdout.write("\nRun canaryhook init --force to repair.\n");
   return healthy ? 0 : 1;
 }

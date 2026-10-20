@@ -1,7 +1,7 @@
 import { existsSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { unregister } from "../settings.js";
-import { readState, STATE_DIR } from "../state.js";
+import { SettingsError, unregister } from "../settings.js";
+import { isDecoyFile, readState, STATE_DIR } from "../state.js";
 
 export function clean(root: string, options: { json: boolean; keepAlerts: boolean }): number {
   const state = readState(root);
@@ -13,24 +13,46 @@ export function clean(root: string, options: { json: boolean; keepAlerts: boolea
   }
 
   const removed: string[] = [];
+  const kept: string[] = [];
   for (const decoy of state.decoys) {
-    const path = join(root, decoy.path);
-    if (existsSync(path)) {
-      unlinkSync(path);
+    if (isDecoyFile(root, decoy)) {
+      unlinkSync(join(root, decoy.path));
       removed.push(decoy.path);
+    } else if (existsSync(join(root, decoy.path))) {
+      kept.push(decoy.path);
     }
   }
-  const hookRemoved = unregister(root);
+  let hookRemoved = false;
+  let settingsProblem: string | null = null;
+  try {
+    hookRemoved = unregister(root);
+  } catch (error) {
+    if (!(error instanceof SettingsError)) throw error;
+    settingsProblem = error.message;
+  }
   if (!options.keepAlerts) rmSync(join(root, STATE_DIR), { recursive: true, force: true });
 
   if (options.json) {
     process.stdout.write(
-      `${JSON.stringify({ ok: true, removed, hookRemoved, alertsKept: options.keepAlerts })}\n`,
+      `${JSON.stringify({
+        ok: true,
+        removed,
+        kept,
+        hookRemoved,
+        settingsProblem,
+        alertsKept: options.keepAlerts,
+      })}\n`,
     );
     return 0;
   }
   process.stdout.write(`Removed ${removed.length} decoy(s).\n`);
-  process.stdout.write(hookRemoved ? "Unregistered the PreToolUse hook.\n" : "No hook to unregister.\n");
+  if (kept.length > 0) {
+    process.stdout.write(
+      `Left ${kept.join(", ")} in place: no longer canaryhook decoys.\n`,
+    );
+  }
+  if (settingsProblem) process.stdout.write(`${settingsProblem}\n`);
+  else process.stdout.write(hookRemoved ? "Unregistered the PreToolUse hook.\n" : "No hook to unregister.\n");
   process.stdout.write(
     options.keepAlerts ? `Kept ${STATE_DIR}/alerts.jsonl.\n` : `Removed ${STATE_DIR}/.\n`,
   );
