@@ -11,6 +11,13 @@ Part of the [aiagentflow](https://aiagentflow.dev) suite.
 Website: **[aiagentflow.dev/canaryhook](https://aiagentflow.dev/canaryhook)**
 
 <p align="center">
+  <a href="https://github.com/aiagentflow/canaryhook/blob/main/assets/promo/canaryhook-promo.mp4">
+    <img src="assets/promo/poster.png" alt="Watch the canaryhook demo video" width="720">
+  </a><br>
+  <sub>80 seconds: plant the decoys, catch a credential hunt, read the record. Sound on.</sub>
+</p>
+
+<p align="center">
   <strong>canaryhook init</strong><br>
   <img src="assets/demos/demo-init.gif" alt="canaryhook init demo" width="640">
 </p>
