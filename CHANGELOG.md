@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+Run `canaryhook init --force` on an existing install to add the `PostToolUse` hook.
+
+### Added
+
+- A `PostToolUse` hook checks each tool's output for canary strings, so a sweep like `grep -r AKIA .` that reads a decoy without naming it is recorded and the agent is told the value is fake.
+- The hook trips on tampering: deleting or rewriting `.canaryhook/`, running `canaryhook clean`, removing the hook from the settings, or setting `disableAllHooks`. These are denied and recorded as `tamper`.
+- Shell globs that expand to a decoy, like `cat .env*` or `grep key *.bak`, trip the read path.
+
+### Fixed
+
+- The hook and every command except `init` find the project from a subdirectory. Before, an agent working in `src/` was not guarded at all, and `verify` run there reported no trips.
+- `verify` fails where canaryhook was never initialized, instead of reporting a clean record. A CI checkout has no record, so the old CI step could never fail; the README now shows `init` before the agent step.
+- Unknown flags and arguments are rejected instead of ignored, so `clean --keep-alert` no longer deletes the alerts it meant to keep.
+
+### Changed
+
+- `status` reports the `PostToolUse` hook and counts it towards healthy.
+
 ## 0.2.0
 
 ### Added
