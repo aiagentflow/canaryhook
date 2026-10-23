@@ -40,9 +40,10 @@ Or with Homebrew:
 brew install aiagentflow/tap/canaryhook
 ```
 
-`init` plants four decoys, registers a `PreToolUse` hook and a `SessionStart`
-hook in `.claude/settings.json` (merging with hooks you already have), and adds
-the decoys plus `.canaryhook/` to `.gitignore`.
+`init` plants four decoys, registers `PreToolUse`, `PostToolUse` and
+`SessionStart` hooks in `.claude/settings.json` (merging with hooks you already
+have), and adds the decoys plus `.canaryhook/` to `.gitignore`. Upgrading from
+0.2.0, run `canaryhook init --force` to add the `PostToolUse` hook.
 
 ## Commands
 
@@ -86,7 +87,7 @@ Nothing in your code, build, lint or test path references these files, so a hit
 is almost never a false positive. The canary strings are recorded in
 `.canaryhook/canaries.json`, which is itself watched.
 
-Three checks then run on every tool call:
+Four checks then run on every tool call:
 
 - **Read path.** The hook trips when a call names a decoy path, whether that is
   `Read` with a `file_path`, a shell `cat`, or anything else that mentions it.
@@ -97,6 +98,10 @@ Three checks then run on every tool call:
   message. It matches the string as written, lowercased, base64 or hex encoded,
   so wrapping the value on the way out does not hide it. You do not have to
   enumerate every way a file can be read, only notice the value leaving.
+- **Output path.** After a call runs, the hook checks what it returned. A
+  canary string in the output means a decoy was read by a call that never
+  named it, like `grep -r AKIA .`. The call already ran, so it cannot be
+  blocked, but it is recorded and the agent is told the value is fake.
 - **Tamper path.** The hook trips when a call would blind canaryhook: deleting
   or rewriting `.canaryhook/`, running `canaryhook clean`, removing the hook
   from `.claude/settings.json`, or setting `disableAllHooks`. Otherwise an
@@ -129,9 +134,9 @@ with a planted payload on stdin, and tells you whether the deny came back.
 
 canaryhook detects, it does not prevent. An attacker that ignores the decoys is
 not caught, and a targeted one that reads only the real `.env` walks past. A
-sweep like `grep -r AKIA .` reads the decoys without naming them, so it only
-trips on the exfil path, when a canary string shows up in a later call. It is a
-smoke detector, not a lock. Its value is that it costs nothing to run, needs no
+sweep like `grep -r AKIA .` reads the decoys without naming them, so it is
+recorded only after it has run, on the output path. It is a smoke detector, not
+a lock. Its value is that it costs nothing to run, needs no
 model, and stays quiet enough that you leave it installed.
 
 ## License

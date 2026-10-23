@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -43,4 +43,32 @@ test("verify run from a subdirectory sees a trip recorded at the root", () => {
   const payload = JSON.stringify({ cwd: root, tool_name: "Read", tool_input: { file_path: ".env.backup" } });
   run(["hook"], root, payload);
   assert.equal(run(["verify"], sub).status, 1);
+});
+
+test("the output hook records a decoy read through a sweep and tells the agent", () => {
+  const { root } = project();
+  const { decoys } = JSON.parse(readFileSync(join(root, ".canaryhook", "canaries.json"), "utf8"));
+  const payload = JSON.stringify({
+    cwd: root,
+    hook_event_name: "PostToolUse",
+    tool_name: "Bash",
+    tool_input: { command: "grep -r AKIA ." },
+    tool_response: { stdout: `./.env.backup:AWS_ACCESS_KEY_ID=${decoys[0].token}\n`, stderr: "" },
+  });
+  const result = run(["hook"], root, payload);
+  assert.equal(JSON.parse(result.stdout).decision, "block");
+  assert.equal(run(["verify"], root).status, 1);
+});
+
+test("the output hook stays quiet on clean output", () => {
+  const { root } = project();
+  const payload = JSON.stringify({
+    cwd: root,
+    hook_event_name: "PostToolUse",
+    tool_name: "Bash",
+    tool_input: { command: "grep -r TODO src" },
+    tool_response: { stdout: "src/a.ts:1:// TODO\n", stderr: "" },
+  });
+  assert.equal(run(["hook"], root, payload).stdout, "");
+  assert.equal(run(["verify"], root).status, 0);
 });

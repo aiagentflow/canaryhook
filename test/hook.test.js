@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { globbedDecoy, inspect, tampers } from "../dist/hook.js";
+import { globbedDecoy, inspect, inspectOutput, tampers } from "../dist/hook.js";
 
 const decoys = [
   { path: ".env.backup", token: "AKIATESTTOKEN0001", kind: "env" },
@@ -177,4 +177,13 @@ test("passes reads of the record and unrelated settings changes", () => {
   ]) {
     assert.equal(tampers(toolInput), null, JSON.stringify(toolInput));
   }
+});
+
+test("trips on a canary string in a tool's output", () => {
+  const hit = inspectOutput(decoys, { stdout: `./.env.backup:AWS_ACCESS_KEY_ID=${decoys[0].token}`, stderr: "" });
+  assert.equal(hit?.reason, "decoy-read");
+  assert.equal(hit.decoy, ".env.backup");
+  assert.equal(inspectOutput(decoys, { stdout: Buffer.from(`x${decoys[1].token}`).toString("base64") })?.decoy, "credentials.json.bak");
+  assert.equal(inspectOutput(decoys, { stdout: "src/index.ts:1:import x" }), null);
+  assert.equal(inspectOutput(decoys, undefined), null);
 });

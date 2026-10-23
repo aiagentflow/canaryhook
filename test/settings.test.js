@@ -79,6 +79,7 @@ test("registers the session hook alongside the tool-call hook", () => {
   const after = read(root);
   assert.equal(after.hooks.SessionStart[0].hooks[0].command, "canaryhook session-start");
   assert.equal("matcher" in after.hooks.SessionStart[0], false);
+  assert.equal(after.hooks.PostToolUse[0].hooks[0].command, HOOK_COMMAND);
 });
 
 test("adds only the hook that is missing", () => {
