@@ -84,6 +84,72 @@ export function mentionsPath(haystack: string, path: string): boolean {
   }
 }
 
+/** Commands that handle file names without reading what is inside the files. */
+const NON_READING = new Set([
+  "ls", "rm", "mv", "find", "stat", "du", "touch", "mkdir", "echo", "printf", "git", "chmod", "chown",
+]);
+
+/** Words that run the next word as the command. */
+const PREFIXES = new Set(["sudo", "command", "exec", "time", "nice", "env"]);
+
+/** A shell glob as a regex over one file name, or null for a plain word. */
+function globRegex(glob: string): RegExp | null {
+  if (!/[*?[{]/.test(glob)) return null;
+  let out = "";
+  for (let i = 0; i < glob.length; i += 1) {
+    const c = glob[i];
+    if (c === "*") out += "[^/]*";
+    else if (c === "?") out += "[^/]";
+    else if (c === "[") {
+      const end = glob.indexOf("]", i + 2);
+      if (end < 0) out += "\\[";
+      else {
+        out += `[${glob.slice(i + 1, end).replace(/^!/, "^").replace(/\\/g, "\\\\")}]`;
+        i = end;
+      }
+    } else if (c === "{") {
+      const end = glob.indexOf("}", i);
+      if (end < 0) out += "\\{";
+      else {
+        out += `(?:${glob.slice(i + 1, end).split(",").map((alt) => alt.replace(/[.+^$()|\\]/g, "\\$&")).join("|")})`;
+        i = end;
+      }
+    } else out += c.replace(/[.+^$()|\\\]}]/g, "\\$&");
+  }
+  return new RegExp(`^${out}$`);
+}
+
+/**
+ * A glob in a shell command that expands to a decoy, like `cat .env*`: the
+ * decoy is read without ever being named. Only globs aimed at the project root
+ * count, with at least three literal characters (so `*` alone is not taken as
+ * aimed at anything), in a command that reads what it is given.
+ */
+export function globbedDecoy(command: string, paths: string[]): string | null {
+  for (const segment of command.split(/[;&|\n]|\$\(|`/)) {
+    const words = segment.trim().split(/\s+/).filter((w) => w.length > 0);
+    let at = 0;
+    while (at < words.length && (PREFIXES.has(words[at]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at]))) at += 1;
+    if (at >= words.length || NON_READING.has(words[at])) continue;
+    for (const word of words.slice(at + 1)) {
+      if (/^(['"]).*\1$/.test(word)) continue; // quoted globs do not expand
+      const bare = word.replace(/['"]/g, "");
+      const slash = bare.lastIndexOf("/");
+      const dir = bare.slice(0, slash + 1);
+      const name = bare.slice(slash + 1);
+      if (dir !== "" && !/^(\.\/|\.\.\/)+$/.test(dir)) continue;
+      if (name.replace(/[*?]|\[[^\]]*\]|\{[^}]*\}/g, "").length < 3) continue;
+      const re = globRegex(name);
+      if (!re) continue;
+      for (const path of paths) {
+        if (path.startsWith(".") && !name.startsWith(".")) continue; // * skips dotfiles
+        if (re.test(path)) return path;
+      }
+    }
+  }
+  return null;
+}
+
 /** Fields the known tools use to name the file they are about to touch. */
 const PATH_FIELDS = ["file_path", "filePath", "path", "notebook_path"];
 
@@ -98,6 +164,13 @@ function isGitignoreEdit(toolInput: unknown): boolean {
   return PATH_FIELDS.some(
     (field) => typeof fields[field] === "string" && basename(fields[field] as string) === ".gitignore",
   );
+}
+
+/** The shell command of a Bash-style call, if it has one. */
+function commandOf(toolInput: unknown): string | null {
+  if (!toolInput || typeof toolInput !== "object") return null;
+  const command = (toolInput as Record<string, unknown>).command;
+  return typeof command === "string" ? command : null;
 }
 
 function readStdin(): Promise<string> {
@@ -146,6 +219,15 @@ export function inspect(decoys: Decoy[], toolInput: unknown): Hit | null {
         detail: `tool call references the decoy ${path}`,
       };
     }
+  }
+  const command = commandOf(toolInput);
+  const globbed = command === null ? null : globbedDecoy(command, decoys.map((d) => d.path));
+  if (globbed) {
+    return {
+      reason: "decoy-read",
+      decoy: globbed,
+      detail: `tool call reads ${globbed} through a glob`,
+    };
   }
   if (mentionsPath(haystack, stateFile)) {
     return {

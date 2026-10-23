@@ -90,6 +90,8 @@ Two detection paths then run on every tool call:
 
 - **Read path.** The hook trips when a call names a decoy path, whether that is
   `Read` with a `file_path`, a shell `cat`, or anything else that mentions it.
+  A shell glob that expands to a decoy counts too: `cat .env*` or
+  `grep key *.bak` in the project root reads the decoy without naming it.
 - **Exfil path.** The hook trips when a canary string appears anywhere in the
   call's input: a shell argument, a fetch URL or body, a file write, a commit
   message. It matches the string as written, lowercased, base64 or hex encoded,
