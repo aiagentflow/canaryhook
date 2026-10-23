@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 export const STATE_DIR = ".canaryhook";
 export const STATE_FILE = "canaries.json";
@@ -36,6 +36,21 @@ export function statePath(root: string): string {
 
 export function alertsPath(root: string): string {
   return join(root, STATE_DIR, ALERTS_FILE);
+}
+
+/**
+ * The nearest directory at or above `start` that canaryhook was initialized in.
+ * Agents and CI steps often run from a subdirectory, and looking only there
+ * would see no decoys at all, which fails open.
+ */
+export function findRoot(start: string): string | null {
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(statePath(dir))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 export function readState(root: string): State | null {

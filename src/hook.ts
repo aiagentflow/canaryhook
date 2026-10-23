@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { appendAlert, readState, type Alert, type Decoy } from "./state.js";
+import { appendAlert, findRoot, readState, type Alert, type Decoy } from "./state.js";
 import { STATE_DIR, STATE_FILE } from "./state.js";
 
 interface HookInput {
@@ -167,7 +167,12 @@ export async function runHook(): Promise<number> {
     return 0;
   }
 
-  const root = input.cwd ?? process.cwd();
+  // The agent's cwd may be a subdirectory of the project; fall back to the
+  // directory Claude Code was started in.
+  const root = [input.cwd, process.env.CLAUDE_PROJECT_DIR, process.cwd()]
+    .map((dir) => (dir ? findRoot(dir) : null))
+    .find((dir) => dir !== null);
+  if (!root) return 0;
   const state = readState(root);
   if (!state) return 0;
 

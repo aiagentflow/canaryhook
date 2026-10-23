@@ -7,6 +7,7 @@ import { status } from "./commands/status.js";
 import { verify } from "./commands/verify.js";
 import { sessionStart } from "./commands/session.js";
 import { runHook } from "./hook.js";
+import { findRoot } from "./state.js";
 import { VERSION } from "./version.js";
 
 const HELP = `canaryhook ${VERSION}: honeyfiles and canary tokens for AI coding agents
@@ -39,7 +40,9 @@ async function main(argv: string[]): Promise<number> {
   const args = argv.slice(2);
   const has = (flag: string) => args.includes(flag);
   const command = args.find((a) => !a.startsWith("-"));
-  const root = process.cwd();
+  // init plants where it is run; every other command works on the nearest
+  // initialized project, so running one from a subdirectory sees the real state.
+  const root = command === "init" ? process.cwd() : (findRoot(process.cwd()) ?? process.cwd());
   const json = has("--json");
 
   if (has("-v") || has("--version")) {
