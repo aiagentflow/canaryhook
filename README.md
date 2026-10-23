@@ -126,8 +126,15 @@ with a planted payload on stdin, and tells you whether the deny came back.
 
 ## CI
 
+For a job that runs a coding agent, plant the decoys before the agent step and
+check the record after it. The decoys and `.canaryhook/` are gitignored, so
+they only exist in a job that ran `init`; `verify` fails where canaryhook was
+never initialized rather than reporting a clean record it cannot have.
+
 ```yaml
-- run: npx canaryhook verify
+- run: npm install -g canaryhook && canaryhook init
+# ... the step that runs the agent ...
+- run: canaryhook verify
 ```
 
 ## Limits
