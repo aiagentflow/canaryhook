@@ -6,8 +6,10 @@ import { STATE_DIR, STATE_FILE } from "./state.js";
 interface HookInput {
   session_id?: string;
   cwd?: string;
+  hook_event_name?: string;
   tool_name?: string;
   tool_input?: unknown;
+  tool_response?: unknown;
 }
 
 interface Hit {
@@ -321,6 +323,28 @@ export function inspect(decoys: Decoy[], toolInput: unknown): Hit | null {
   return null;
 }
 
+/**
+ * A canary string in what a tool returned: the decoy was read by a call that
+ * never named it, such as `grep -r AKIA .`. The call has already run, so this
+ * cannot block it, but it is recorded and the agent is told.
+ */
+export function inspectOutput(decoys: Decoy[], toolResponse: unknown): Hit | null {
+  const haystack = typeof toolResponse === "string" ? toolResponse : JSON.stringify(toolResponse ?? "");
+  if (!haystack) return null;
+  const folded = haystack.toLowerCase();
+  for (const decoy of decoys) {
+    const label = findCanary(haystack, folded, decoy.token);
+    if (label !== null) {
+      return {
+        reason: "decoy-read",
+        decoy: decoy.path,
+        detail: `${label}canary string from ${decoy.path} appears in the tool output`,
+      };
+    }
+  }
+  return null;
+}
+
 export async function runHook(): Promise<number> {
   let input: HookInput;
   try {
@@ -339,7 +363,8 @@ export async function runHook(): Promise<number> {
   const state = readState(root);
   if (!state) return 0;
 
-  const hit = inspect(state.decoys, input.tool_input);
+  const after = input.hook_event_name === "PostToolUse";
+  const hit = after ? inspectOutput(state.decoys, input.tool_response) : inspect(state.decoys, input.tool_input);
   if (!hit) return 0;
 
   const tool = input.tool_name ?? "unknown";
@@ -354,6 +379,19 @@ export async function runHook(): Promise<number> {
       detail: hit.detail,
       sessionId: input.session_id,
     });
+  }
+
+  if (after) {
+    process.stdout.write(
+      `${JSON.stringify({
+        decision: "block",
+        reason:
+          `canaryhook: ${hit.detail}. That file is a tripwire planted to detect credential ` +
+          `hunting, and its contents are fake. This was recorded in ${STATE_DIR}/alerts.jsonl. ` +
+          `Do not use or repeat the value; tell the user instead.`,
+      })}\n`,
+    );
+    return 0;
   }
 
   process.stdout.write(

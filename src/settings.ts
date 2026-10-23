@@ -28,10 +28,14 @@ interface HookSpec {
   command: string;
 }
 
-/** Every hook canaryhook installs: one to catch a trip, one to report it. */
+/**
+ * Every hook canaryhook installs: one to catch a trip before a call runs, one
+ * to catch a decoy read through a call's output, and one to report trips.
+ */
 const SPECS: HookSpec[] = [
   { event: "PreToolUse", matcher: "*", command: HOOK_COMMAND },
   { event: "SessionStart", command: SESSION_COMMAND },
+  { event: "PostToolUse", matcher: "*", command: HOOK_COMMAND },
 ];
 
 /** Raised instead of silently replacing settings canaryhook cannot parse. */
@@ -74,6 +78,11 @@ export function isRegistered(root: string): boolean {
 /** Whether the SessionStart hook, the one that reports past trips, is in place. */
 export function isSessionRegistered(root: string): boolean {
   return has(load(root), SPECS[1]);
+}
+
+/** Whether the PostToolUse hook, the one that checks tool output, is in place. */
+export function isOutputRegistered(root: string): boolean {
+  return has(load(root), SPECS[2]);
 }
 
 /** Adds the hooks that are missing without disturbing hooks already there. */
