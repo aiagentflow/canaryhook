@@ -86,7 +86,7 @@ Nothing in your code, build, lint or test path references these files, so a hit
 is almost never a false positive. The canary strings are recorded in
 `.canaryhook/canaries.json`, which is itself watched.
 
-Two detection paths then run on every tool call:
+Three checks then run on every tool call:
 
 - **Read path.** The hook trips when a call names a decoy path, whether that is
   `Read` with a `file_path`, a shell `cat`, or anything else that mentions it.
@@ -97,6 +97,11 @@ Two detection paths then run on every tool call:
   message. It matches the string as written, lowercased, base64 or hex encoded,
   so wrapping the value on the way out does not hide it. You do not have to
   enumerate every way a file can be read, only notice the value leaving.
+- **Tamper path.** The hook trips when a call would blind canaryhook: deleting
+  or rewriting `.canaryhook/`, running `canaryhook clean`, removing the hook
+  from `.claude/settings.json`, or setting `disableAllHooks`. Otherwise an
+  agent that tripped a decoy could erase the record and carry on. You can still
+  do all of these yourself from a terminal, where no hook runs.
 
 On a trip, canaryhook returns a `deny` decision so the tool call never runs,
 tells the agent the file was a tripwire and not to retry, and appends to

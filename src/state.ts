@@ -23,7 +23,7 @@ export interface State {
 
 export interface Alert {
   at: string;
-  reason: "decoy-read" | "canary-exfil";
+  reason: "decoy-read" | "canary-exfil" | "tamper";
   decoy: string;
   tool: string;
   detail: string;

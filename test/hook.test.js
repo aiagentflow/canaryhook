@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { globbedDecoy, inspect } from "../dist/hook.js";
+import { globbedDecoy, inspect, tampers } from "../dist/hook.js";
 
 const decoys = [
   { path: ".env.backup", token: "AKIATESTTOKEN0001", kind: "env" },
@@ -142,4 +142,39 @@ test("passes globs that do not read a decoy", () => {
 
 test("checks globs only in shell commands, not in other tools' patterns", () => {
   assert.equal(inspect(decoys, { pattern: ".env*" }), null);
+});
+
+test("trips on a call that erases the record or unregisters the hook", () => {
+  for (const toolInput of [
+    { command: "rm .canaryhook/alerts.jsonl" },
+    { command: ": > .canaryhook/alerts.jsonl" },
+    { command: "rm -rf .canaryhook" },
+    { command: "npx canaryhook clean --keep-alerts" },
+    { command: "sed -i /canaryhook/d .claude/settings.json" },
+    { command: "rm .claude/settings.json" },
+    { command: `jq ".hooks={}" .claude/settings.json > t && mv t .claude/settings.json` },
+    { command: `echo '{"disableAllHooks": true}' > .claude/settings.local.json` },
+    { file_path: "/home/me/project/.canaryhook/alerts.jsonl", content: "" },
+    { file_path: ".claude/settings.json", old_string: `"command": "canaryhook hook"`, new_string: "" },
+    { file_path: ".claude/settings.json", edits: [{ old_string: "canaryhook hook", new_string: "" }] },
+    { file_path: ".claude/settings.json", content: "{}" },
+    { file_path: ".claude/settings.local.json", content: `{"disableAllHooks": true}` },
+  ]) {
+    assert.equal(inspect(decoys, toolInput)?.reason, "tamper", JSON.stringify(toolInput));
+  }
+});
+
+test("passes reads of the record and unrelated settings changes", () => {
+  for (const toolInput of [
+    { command: "cat .canaryhook/alerts.jsonl" },
+    { command: "tail -5 .canaryhook/alerts.jsonl 2>/dev/null" },
+    { command: "canaryhook alerts" },
+    { command: "rm -rf node_modules .canaryhook-old" },
+    { command: `jq ".permissions.allow+=[1]" .claude/settings.json > t && mv t .claude/settings.json` },
+    { file_path: ".canaryhook/alerts.jsonl" },
+    { file_path: ".claude/settings.json", old_string: `"allow": []`, new_string: `"allow": ["Bash"]` },
+    { file_path: ".claude/settings.local.json", content: `{"disableAllHooks": false}` },
+  ]) {
+    assert.equal(tampers(toolInput), null, JSON.stringify(toolInput));
+  }
 });

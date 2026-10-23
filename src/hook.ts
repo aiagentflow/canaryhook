@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import { appendAlert, findRoot, readState, type Alert, type Decoy } from "./state.js";
+import { HOOK_COMMAND } from "./settings.js";
 import { STATE_DIR, STATE_FILE } from "./state.js";
 
 interface HookInput {
@@ -173,6 +174,83 @@ function commandOf(toolInput: unknown): string | null {
   return typeof command === "string" ? command : null;
 }
 
+/** Commands that change or remove the files they are given. */
+const MUTATING = new Set(["rm", "unlink", "shred", "truncate", "mv", "cp", "ln", "tee", "dd", "chmod"]);
+
+/** Commands that only change a file when told to edit it in place. */
+const IN_PLACE = new Set(["sed", "perl"]);
+
+/** Settings files Claude Code reads hooks from, where the hook can be switched off. */
+const SETTINGS_FILES = [".claude/settings.json", ".claude/settings.local.json"];
+
+/** Fields the editing tools carry the new content in. */
+const WRITE_FIELDS = ["content", "new_string", "edits", "new_source"];
+
+const mentionsState = (text: string) => mentionsPath(text, STATE_DIR);
+const mentionsSettings = (text: string) => SETTINGS_FILES.some((file) => mentionsPath(text, file));
+const disablesHooks = (text: string) => /disableAllHooks[\\"']*\s*:\s*true/.test(text);
+
+/**
+ * A call that would blind canaryhook: erase or rewrite its record, unregister
+ * its hook, or turn hooks off. Without this an agent that trips a decoy could
+ * wipe the evidence and carry on. The user can still do all of it themselves,
+ * from a terminal, where no hook runs.
+ */
+export function tampers(toolInput: unknown): string | null {
+  if (!toolInput || typeof toolInput !== "object") return null;
+  const fields = toolInput as Record<string, unknown>;
+
+  const command = commandOf(toolInput);
+  if (command !== null) return tampersInShell(command);
+
+  const path = PATH_FIELDS.map((field) => fields[field]).find((value) => typeof value === "string") as
+    | string
+    | undefined;
+  if (path === undefined || !WRITE_FIELDS.some((field) => field in fields)) return null;
+  const written = JSON.stringify(WRITE_FIELDS.map((field) => fields[field] ?? null));
+
+  if (mentionsState(path)) return `tool call writes to ${STATE_DIR}/, canaryhook's record`;
+  if (!mentionsSettings(path)) return null;
+  if (disablesHooks(written)) return "tool call turns off all hooks, canaryhook's among them";
+  const edits = Array.isArray(fields.edits) ? (fields.edits as Record<string, unknown>[]) : [fields];
+  const dropsHook = edits.some(
+    (edit) =>
+      typeof edit.old_string === "string" &&
+      edit.old_string.includes(HOOK_COMMAND) &&
+      !String(edit.new_string ?? "").includes(HOOK_COMMAND),
+  );
+  const rewritesWithout =
+    typeof fields.content === "string" && path.endsWith("settings.json") && !fields.content.includes(HOOK_COMMAND);
+  if (dropsHook || rewritesWithout) return "tool call removes canaryhook's hook from the settings";
+  return null;
+}
+
+function tampersInShell(command: string): string | null {
+  if (/\bcanaryhook(@\S+)?\s+clean\b/.test(command)) return "tool call runs canaryhook clean";
+  if (disablesHooks(command) && mentionsSettings(command)) {
+    return "tool call turns off all hooks, canaryhook's among them";
+  }
+  for (const segment of command.split(/[;&|\n]|\$\(|`/)) {
+    const words = segment.trim().split(/\s+/).filter((w) => w.length > 0);
+    let at = 0;
+    while (at < words.length && (PREFIXES.has(words[at]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at]))) at += 1;
+    const name = words[at] ?? "";
+    const mutates =
+      MUTATING.has(name) || (IN_PLACE.has(name) && words.some((w) => /^(-i|--in-place)/.test(w)));
+    const targets = mutates ? words.slice(at + 1) : [];
+    for (const match of segment.matchAll(/(?:^|[^0-9&<>])>>?\s*(\S+)/g)) targets.push(match[1]);
+
+    if (targets.some(mentionsState)) return `tool call changes ${STATE_DIR}/, canaryhook's record`;
+    // Rewriting the settings for other reasons is fine; only a removal, or a
+    // rewrite that is about hooks, can take the hook out.
+    if (targets.some(mentionsSettings)) {
+      const destroys = ["rm", "unlink", "shred", "truncate"].includes(name);
+      if (destroys || /canaryhook|hooks/i.test(command)) return "tool call rewrites the settings that hold canaryhook's hook";
+    }
+  }
+  return null;
+}
+
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     let data = "";
@@ -207,6 +285,9 @@ export function inspect(decoys: Decoy[], toolInput: unknown): Hit | null {
       };
     }
   }
+
+  const tamper = tampers(toolInput);
+  if (tamper) return { reason: "tamper", decoy: STATE_DIR, detail: tamper };
 
   if (isGitignoreEdit(toolInput)) return null;
 
@@ -281,9 +362,14 @@ export async function runHook(): Promise<number> {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
         permissionDecisionReason:
-          `canaryhook: ${hit.detail}. It is a tripwire planted to detect credential ` +
-          `hunting, not real project data. This call was blocked and recorded in ` +
-          `${STATE_DIR}/alerts.jsonl. Do not retry it; tell the user instead.`,
+          hit.reason === "tamper"
+            ? `canaryhook: ${hit.detail}. Its record and hook are protected from agent ` +
+              `changes, so this call was blocked and recorded in ${STATE_DIR}/alerts.jsonl. ` +
+              `If the user wants canaryhook changed or removed, they can run it themselves ` +
+              `from a terminal. Do not retry it; tell the user instead.`
+            : `canaryhook: ${hit.detail}. It is a tripwire planted to detect credential ` +
+              `hunting, not real project data. This call was blocked and recorded in ` +
+              `${STATE_DIR}/alerts.jsonl. Do not retry it; tell the user instead.`,
       },
     })}\n`,
   );
