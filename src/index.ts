@@ -22,7 +22,7 @@ Commands
   doctor      Fire a test payload through the hook to prove it is wired
   verify      Exit non-zero if a decoy was read or a canary leaked
   clean       Remove planted decoys and unregister the hook
-  hook           Internal: read a PreToolUse payload on stdin and judge it
+  hook           Internal: read a tool-call hook payload on stdin and judge it
   session-start  Internal: report outstanding trips at the start of a session
 
 Options
@@ -35,6 +35,28 @@ Options
 
 Docs: https://github.com/aiagentflow/canaryhook
 `;
+
+/** Flags each command accepts beyond --json, -h and -v. */
+const FLAGS: Record<string, string[]> = {
+  init: ["--commit", "--force"],
+  clean: ["--keep-alerts"],
+  status: [],
+  alerts: [],
+  doctor: [],
+  verify: [],
+};
+
+/**
+ * A mistyped flag would otherwise be ignored, so `init --froce` reports
+ * "already initialized" and `clean --keep-alert` deletes the record it meant
+ * to keep. The internal hook commands are left out: a hook must never fail.
+ */
+function unknownArg(command: string, args: string[]): string | null {
+  const allowed = FLAGS[command];
+  if (allowed === undefined) return null;
+  const known = new Set([...allowed, "--json", "-h", "--help", "-v", "--version"]);
+  return args.find((arg) => (arg.startsWith("-") ? !known.has(arg) : arg !== command)) ?? null;
+}
 
 async function main(argv: string[]): Promise<number> {
   const args = argv.slice(2);
@@ -52,6 +74,12 @@ async function main(argv: string[]): Promise<number> {
   if (!command || has("-h") || has("--help")) {
     process.stdout.write(HELP);
     return 0;
+  }
+
+  const unknown = unknownArg(command, args);
+  if (unknown !== null) {
+    process.stderr.write(`Unknown option for ${command}: ${unknown}\n\n${HELP}`);
+    return 1;
   }
 
   switch (command) {

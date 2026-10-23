@@ -85,3 +85,12 @@ test("verify passes a fresh install with no trips", () => {
   const { root } = project();
   assert.equal(run(["verify"], root).status, 0);
 });
+
+test("rejects a mistyped flag instead of ignoring it", () => {
+  const { root } = project();
+  const result = run(["clean", "--keep-alert"], root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Unknown option for clean: --keep-alert/);
+  assert.equal(run(["status", "extra"], root).status, 1);
+  assert.equal(run(["status", "--json"], root).status, 0);
+});
