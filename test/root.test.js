@@ -72,3 +72,16 @@ test("the output hook stays quiet on clean output", () => {
   assert.equal(run(["hook"], root, payload).stdout, "");
   assert.equal(run(["verify"], root).status, 0);
 });
+
+test("verify fails where canaryhook was never initialized", () => {
+  const empty = mkdtempSync(join(tmpdir(), "canaryhook-"));
+  const result = run(["verify"], empty);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /not initialized/);
+  assert.equal(JSON.parse(run(["verify", "--json"], empty).stdout).initialized, false);
+});
+
+test("verify passes a fresh install with no trips", () => {
+  const { root } = project();
+  assert.equal(run(["verify"], root).status, 0);
+});
