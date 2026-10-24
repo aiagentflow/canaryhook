@@ -32,6 +32,10 @@ export interface Agent {
   configPath: string;
   /** Other config files that can switch the hooks off without holding them. */
   alsoProtect?: string[];
+  /** A config setting that turns every hook off, canaryhook's included. */
+  disables?: RegExp;
+  /** A step the user has to take before the hooks run, printed by init and status. */
+  setupNote?: string;
   hookCommand: string;
   sessionCommand: string;
   /** Whether the project already uses this agent, so init wires it by default. */

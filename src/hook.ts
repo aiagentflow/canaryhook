@@ -183,7 +183,7 @@ const WRITE_FIELDS = ["content", "new_string", "edits", "new_source"];
 
 const mentionsState = (text: string) => mentionsPath(text, STATE_DIR);
 const mentionsSettings = (text: string) => SETTINGS_FILES.some((file) => mentionsPath(text, file));
-const disablesHooks = (text: string) => /disableAllHooks[\\"']*\s*:\s*true/.test(text);
+const disablesHooks = (text: string) => AGENTS.some((agent) => agent.disables?.test(text));
 
 /**
  * A call that would blind canaryhook: erase or rewrite its record, unregister
@@ -202,7 +202,13 @@ export function tampers(toolInput: unknown): string | null {
     | string
     | undefined;
   if (path === undefined || !WRITE_FIELDS.some((field) => field in fields)) return null;
-  const written = JSON.stringify(WRITE_FIELDS.map((field) => fields[field] ?? null));
+  // Raw text, not JSON: escaping would hide a setting at the start of a line.
+  const written = WRITE_FIELDS.flatMap((field) => {
+    const value = fields[field];
+    if (typeof value === "string") return [value];
+    if (Array.isArray(value)) return value.map((edit) => String((edit as Record<string, unknown>)?.new_string ?? ""));
+    return [];
+  }).join("\n");
 
   if (mentionsState(path)) return `tool call writes to ${STATE_DIR}/, canaryhook's record`;
   if (!mentionsSettings(path)) return null;

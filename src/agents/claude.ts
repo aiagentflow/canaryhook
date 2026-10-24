@@ -15,6 +15,7 @@ export const claude: Agent = {
   label: "Claude Code",
   configPath: SETTINGS_PATH,
   alsoProtect: [".claude/settings.local.json"],
+  disables: /disableAllHooks[\\"']*\s*:\s*true/,
   hookCommand: HOOK_COMMAND,
   sessionCommand: SESSION_COMMAND,
   // Claude Code is always wired by default, whether or not .claude/ exists yet.

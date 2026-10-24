@@ -1,4 +1,5 @@
 import { claude } from "./claude.js";
+import { codex } from "./codex.js";
 import { cursor } from "./cursor.js";
 import type { State } from "../state.js";
 import type { Agent } from "./types.js";
@@ -6,7 +7,7 @@ import type { Agent } from "./types.js";
 export type { Agent, ToolCall, Wiring } from "./types.js";
 
 /** Every agent canaryhook can wire, in the order they are reported. */
-export const AGENTS: Agent[] = [claude, cursor];
+export const AGENTS: Agent[] = [claude, cursor, codex];
 
 export function agentNamed(name: string): Agent | undefined {
   return AGENTS.find((agent) => agent.name === name);
@@ -28,4 +29,4 @@ export function wiredAgents(state: State): Agent[] {
   return (state.agents ?? [claude.name]).flatMap((name) => agentNamed(name) ?? []);
 }
 
-export { claude, cursor };
+export { claude, codex, cursor };
