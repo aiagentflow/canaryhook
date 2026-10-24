@@ -28,7 +28,7 @@ Commands
 
 Options
   --json           Machine-readable output
-  --agents <list>  init: agents to wire, comma-separated (claude, cursor); default is
+  --agents <list>  init: agents to wire, comma-separated (claude, cursor, codex); default is
                    Claude Code plus any agent the project already uses
   --commit         init: track the decoys in git instead of ignoring them
   --force          init: replant over an existing setup

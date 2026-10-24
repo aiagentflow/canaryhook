@@ -65,6 +65,7 @@ export function status(root: string, options: { json: boolean }): number {
     process.stdout.write(`  Hook         ${mark(a.pre)}\n`);
     process.stdout.write(`  Session hook ${mark(a.session)}\n`);
     process.stdout.write(`  Output hook  ${mark(a.post)}\n`);
+    if (a.agent.setupNote) process.stdout.write(`  Note         ${a.agent.setupNote}\n`);
   }
   process.stdout.write("Decoys\n");
   for (const decoy of decoys) {

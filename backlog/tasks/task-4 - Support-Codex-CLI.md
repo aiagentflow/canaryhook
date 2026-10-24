@@ -1,9 +1,10 @@
 ---
 id: TASK-4
 title: Support Codex CLI
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 05:41'
+updated_date: '2026-10-24 05:52'
 labels:
   - multi-agent
 dependencies:
@@ -22,8 +23,8 @@ Register PreToolUse, PostToolUse and SessionStart in .codex/hooks.json (same sha
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A decoy read through Codex PreToolUse is denied and recorded
-- [ ] #2 An array command is inspected like a string
-- [ ] #3 init prints the trust step
-- [ ] #4 Disabling hooks in .codex/config.toml trips tamper
+- [x] #1 A decoy read through Codex PreToolUse is denied and recorded
+- [x] #2 An array command is inspected like a string
+- [x] #3 init prints the trust step
+- [x] #4 Disabling hooks in .codex/config.toml trips tamper
 <!-- AC:END -->

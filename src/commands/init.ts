@@ -100,7 +100,12 @@ export function init(
         planted: decoys.map((d) => d.path),
         hookRegistered: added.some(Boolean),
         settings: claude.configPath,
-        agents: agents.map((agent, i) => ({ name: agent.name, config: agent.configPath, registered: added[i] })),
+        agents: agents.map((agent, i) => ({
+          name: agent.name,
+          config: agent.configPath,
+          registered: added[i],
+          setupNote: agent.setupNote ?? null,
+        })),
         gitignoreUpdated: ignored,
       })}\n`,
     );
@@ -116,6 +121,7 @@ export function init(
         ? `Registered the hooks for ${agent.label} in ${agent.configPath}.\n`
         : `The hooks for ${agent.label} were already registered in ${agent.configPath}.\n`,
     );
+    if (agent.setupNote) process.stdout.write(`  ${agent.setupNote}\n`);
   });
   if (ignored) process.stdout.write("Added the decoys and .canaryhook/ to .gitignore.\n");
   if (options.commit) process.stdout.write("Left .gitignore alone, as --commit was passed.\n");
