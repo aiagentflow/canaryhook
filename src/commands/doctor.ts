@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { claude, type Agent } from "../agents/index.js";
+import { wiredAgents, type Agent } from "../agents/index.js";
 import { SettingsError } from "../settings.js";
-import { isDecoyFile, readState, type Decoy } from "../state.js";
+import { isDecoyFile, readState, type Decoy, type State } from "../state.js";
 
 interface Check {
   name: string;
@@ -44,16 +44,9 @@ function decoyChecks(root: string, decoys: Decoy[]): Check {
   };
 }
 
-export function doctor(root: string, options: { json: boolean }, agent: Agent = claude): number {
-  const state = readState(root);
-  if (!state) {
-    const message = "canaryhook is not initialized here. Run: canaryhook init";
-    if (options.json) process.stdout.write(`${JSON.stringify({ ok: false, message })}\n`);
-    else process.stderr.write(`${message}\n`);
-    return 1;
-  }
-
-  const checks: Check[] = [decoyChecks(root, state.decoys)];
+/** Whether one agent's hook is registered, and denies and passes as it should. */
+function agentChecks(agent: Agent, root: string, state: State): Check[] {
+  const checks: Check[] = [];
 
   try {
     const registered = agent.wiring(root).pre;
@@ -91,6 +84,27 @@ export function doctor(root: string, options: { json: boolean }, agent: Agent = 
           : `an ordinary read came back ${quiet.decision}`,
   });
 
+  return checks;
+}
+
+export function doctor(root: string, options: { json: boolean }): number {
+  const state = readState(root);
+  if (!state) {
+    const message = "canaryhook is not initialized here. Run: canaryhook init";
+    if (options.json) process.stdout.write(`${JSON.stringify({ ok: false, message })}\n`);
+    else process.stderr.write(`${message}\n`);
+    return 1;
+  }
+
+  const agents = wiredAgents(state);
+  const checks: Check[] = [decoyChecks(root, state.decoys)];
+  for (const agent of agents) {
+    for (const check of agentChecks(agent, root, state)) {
+      // Name the agent only when there is more than one to tell apart.
+      checks.push(agents.length > 1 ? { ...check, name: `${agent.label}: ${check.name}` } : check);
+    }
+  }
+
   const ok = checks.every((check) => check.ok);
 
   if (options.json) {
@@ -104,7 +118,7 @@ export function doctor(root: string, options: { json: boolean }, agent: Agent = 
   process.stdout.write(
     ok
       ? "\nThe hook is wired and firing.\n"
-      : `\nSomething is wrong. If ${agent.hookCommand} cannot run, the hook fails open and\n` +
+      : "\nSomething is wrong. If the hook command cannot run, the hook fails open and\n" +
           "nothing is being watched. Reinstall canaryhook, or run canaryhook init --force.\n",
   );
   return ok ? 0 : 1;
