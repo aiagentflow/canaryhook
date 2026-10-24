@@ -32,6 +32,10 @@
     "ai-agents",
     "prompt-injection",
     "claude-code",
+    "cursor",
+    "codex",
+    "gemini-cli",
+    "antigravity",
     "mcp",
     "cli",
     "exfiltration"

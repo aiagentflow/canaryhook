@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Support for Cursor, Codex CLI, Antigravity CLI and Gemini CLI alongside Claude Code. `init --agents claude,cursor,codex,antigravity,gemini` chooses which to wire; by default it wires Claude Code plus any agent whose config folder the project already has. See the Agents section of the README for each agent's config file and caveats.
+- `status` and `doctor` report every wired agent, and `clean` removes canaryhook's hooks from all of them.
+- The tamper check covers every agent's hook config, and `hooks = false` in `.codex/config.toml`.
+
+### Changed
+
+- `.canaryhook/canaries.json` records the agents `init` wired. A state file from 0.3.0 without that field still means Claude Code.
+
 ## 0.3.0
 
 Run `canaryhook init --force` on an existing install to add the `PostToolUse` hook.
