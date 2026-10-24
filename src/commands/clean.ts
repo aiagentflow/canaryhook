@@ -1,6 +1,7 @@
 import { existsSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { SettingsError, unregister } from "../settings.js";
+import { claude } from "../agents/index.js";
+import { SettingsError } from "../settings.js";
 import { isDecoyFile, readState, STATE_DIR } from "../state.js";
 
 export function clean(root: string, options: { json: boolean; keepAlerts: boolean }): number {
@@ -25,7 +26,7 @@ export function clean(root: string, options: { json: boolean; keepAlerts: boolea
   let hookRemoved = false;
   let settingsProblem: string | null = null;
   try {
-    hookRemoved = unregister(root);
+    hookRemoved = claude.unregister(root);
   } catch (error) {
     if (!(error instanceof SettingsError)) throw error;
     settingsProblem = error.message;

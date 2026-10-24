@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export const SETTINGS_PATH = join(".claude", "settings.json");
 export const HOOK_COMMAND = "canaryhook hook";
@@ -22,7 +22,7 @@ interface Settings {
   [key: string]: unknown;
 }
 
-interface HookSpec {
+export interface HookSpec {
   event: string;
   matcher?: string;
   command: string;
@@ -32,7 +32,7 @@ interface HookSpec {
  * Every hook canaryhook installs: one to catch a trip before a call runs, one
  * to catch a decoy read through a call's output, and one to report trips.
  */
-const SPECS: HookSpec[] = [
+export const SPECS: HookSpec[] = [
   { event: "PreToolUse", matcher: "*", command: HOOK_COMMAND },
   { event: "SessionStart", command: SESSION_COMMAND },
   { event: "PostToolUse", matcher: "*", command: HOOK_COMMAND },
@@ -41,8 +41,8 @@ const SPECS: HookSpec[] = [
 /** Raised instead of silently replacing settings canaryhook cannot parse. */
 export class SettingsError extends Error {}
 
-function load(root: string): Settings {
-  const path = join(root, SETTINGS_PATH);
+function load(root: string, file: string): Settings {
+  const path = join(root, file);
   if (!existsSync(path)) return {};
   let parsed: unknown;
   try {
@@ -52,16 +52,16 @@ function load(root: string): Settings {
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new SettingsError(
-      `${SETTINGS_PATH} is not a JSON object. canaryhook will not overwrite it: ` +
+      `${file} is not a JSON object. canaryhook will not overwrite it: ` +
         `fix or move the file, then run again.`,
     );
   }
   return parsed as Settings;
 }
 
-function save(root: string, settings: Settings): void {
-  mkdirSync(join(root, ".claude"), { recursive: true });
-  writeFileSync(join(root, SETTINGS_PATH), `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+function save(root: string, file: string, settings: Settings): void {
+  mkdirSync(dirname(join(root, file)), { recursive: true });
+  writeFileSync(join(root, file), `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
 function has(settings: Settings, spec: HookSpec): boolean {
@@ -70,26 +70,44 @@ function has(settings: Settings, spec: HookSpec): boolean {
   );
 }
 
+/**
+ * Which of `specs` are in place in a settings file shaped like Claude Code's:
+ * `hooks` keyed by event, each a list of matcher groups holding commands.
+ * Codex and Gemini CLI use the same shape under their own file and event names.
+ */
+export function registeredSpecs(root: string, file: string, specs: HookSpec[]): boolean[] {
+  const settings = load(root, file);
+  return specs.map((spec) => has(settings, spec));
+}
+
 /** Whether the PreToolUse hook, the one that catches a trip, is in place. */
 export function isRegistered(root: string): boolean {
-  return has(load(root), SPECS[0]);
+  return registeredSpecs(root, SETTINGS_PATH, SPECS)[0];
 }
 
 /** Whether the SessionStart hook, the one that reports past trips, is in place. */
 export function isSessionRegistered(root: string): boolean {
-  return has(load(root), SPECS[1]);
+  return registeredSpecs(root, SETTINGS_PATH, SPECS)[1];
 }
 
 /** Whether the PostToolUse hook, the one that checks tool output, is in place. */
 export function isOutputRegistered(root: string): boolean {
-  return has(load(root), SPECS[2]);
+  return registeredSpecs(root, SETTINGS_PATH, SPECS)[2];
 }
 
 /** Adds the hooks that are missing without disturbing hooks already there. */
 export function register(root: string): boolean {
-  const settings = load(root);
+  return registerSpecs(root, SETTINGS_PATH, SPECS);
+}
+
+export function unregister(root: string): boolean {
+  return unregisterSpecs(root, SETTINGS_PATH, SPECS);
+}
+
+export function registerSpecs(root: string, file: string, specs: HookSpec[]): boolean {
+  const settings = load(root, file);
   let added = false;
-  for (const spec of SPECS) {
+  for (const spec of specs) {
     if (has(settings, spec)) continue;
     settings.hooks ??= {};
     settings.hooks[spec.event] ??= [];
@@ -98,13 +116,13 @@ export function register(root: string): boolean {
     settings.hooks[spec.event].push(group);
     added = true;
   }
-  if (added) save(root, settings);
+  if (added) save(root, file, settings);
   return added;
 }
 
-export function unregister(root: string): boolean {
-  const settings = load(root);
-  const ours = new Set(SPECS.map((spec) => spec.command));
+export function unregisterSpecs(root: string, file: string, specs: HookSpec[]): boolean {
+  const settings = load(root, file);
+  const ours = new Set(specs.map((spec) => spec.command));
   let removed = false;
 
   for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
@@ -124,6 +142,6 @@ export function unregister(root: string): boolean {
 
   if (!removed) return false;
   if (Object.keys(settings.hooks ?? {}).length === 0) delete settings.hooks;
-  save(root, settings);
+  save(root, file, settings);
   return true;
 }

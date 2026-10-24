@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { isOutputRegistered, isRegistered, isSessionRegistered, SettingsError, SETTINGS_PATH } from "../settings.js";
+import { claude } from "../agents/index.js";
+import { SettingsError } from "../settings.js";
 import { readAlerts, readState } from "../state.js";
 
 export function status(root: string, options: { json: boolean }): number {
@@ -22,9 +23,7 @@ export function status(root: string, options: { json: boolean }): number {
   let outputHook = false;
   let settingsProblem: string | null = null;
   try {
-    hook = isRegistered(root);
-    sessionHook = isSessionRegistered(root);
-    outputHook = isOutputRegistered(root);
+    ({ pre: hook, session: sessionHook, post: outputHook } = claude.wiring(root));
   } catch (error) {
     if (!(error instanceof SettingsError)) throw error;
     settingsProblem = error.message;
@@ -41,7 +40,7 @@ export function status(root: string, options: { json: boolean }): number {
         hookRegistered: hook,
         sessionHookRegistered: sessionHook,
         outputHookRegistered: outputHook,
-        settings: SETTINGS_PATH,
+        settings: claude.configPath,
         decoys,
         alerts: alerts.length,
         settingsProblem,
@@ -52,7 +51,7 @@ export function status(root: string, options: { json: boolean }): number {
   }
 
   process.stdout.write(`Initialized  ${state.created}\n`);
-  process.stdout.write(`Hook         ${hook ? `registered in ${SETTINGS_PATH}` : "NOT registered"}\n`);
+  process.stdout.write(`Hook         ${hook ? `registered in ${claude.configPath}` : "NOT registered"}\n`);
   process.stdout.write(`Session hook ${sessionHook ? "registered" : "NOT registered"}\n`);
   process.stdout.write(`Output hook  ${outputHook ? "registered" : "NOT registered"}\n`);
   process.stdout.write("Decoys\n");
