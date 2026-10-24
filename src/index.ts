@@ -29,8 +29,8 @@ Commands
 Options
   --json           Machine-readable output
   --agents <list>  init: agents to wire, comma-separated: claude, cursor,
-                   codex, antigravity. Default: Claude Code plus any agent
-                   the project already uses
+                   codex, antigravity, gemini. Default: Claude Code plus
+                   any agent the project already uses
   --commit         init: track the decoys in git instead of ignoring them
   --force          init: replant over an existing setup
   --keep-alerts    clean: keep .canaryhook/alerts.jsonl
