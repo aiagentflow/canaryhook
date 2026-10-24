@@ -26,7 +26,8 @@ export function status(root: string, options: { json: boolean }): number {
       return { agent, pre: false, post: false, session: false, problem: error.message };
     }
   });
-  const all = (key: "pre" | "post" | "session") => agents.every((a) => a[key]);
+  // An agent that cannot check output has nothing to register for it.
+  const all = (key: "pre" | "post" | "session") => agents.every((a) => a[key] !== false);
   const settingsProblem = agents.find((a) => a.problem !== null)?.problem ?? null;
   const alerts = readAlerts(root);
   const missing = decoys.filter((d) => !d.planted).length;
@@ -58,7 +59,7 @@ export function status(root: string, options: { json: boolean }): number {
     return healthy ? 0 : 1;
   }
 
-  const mark = (ok: boolean) => (ok ? "registered" : "NOT registered");
+  const mark = (ok: boolean | null) => (ok === null ? "not supported" : ok ? "registered" : "NOT registered");
   process.stdout.write(`Initialized  ${state.created}\n`);
   for (const a of agents) {
     process.stdout.write(`${a.agent.label} (${a.agent.configPath})\n`);
