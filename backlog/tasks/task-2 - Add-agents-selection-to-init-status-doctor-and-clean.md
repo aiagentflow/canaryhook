@@ -1,9 +1,10 @@
 ---
 id: TASK-2
 title: 'Add --agents selection to init, status, doctor and clean'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 05:41'
+updated_date: '2026-10-24 05:47'
 labels:
   - multi-agent
 dependencies:
@@ -20,8 +21,8 @@ init takes --agents claude,cursor,... and records the chosen agents in canaries.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 init --agents writes only the chosen agents' configs
-- [ ] #2 status and doctor report each wired agent
-- [ ] #3 clean unregisters every wired agent
-- [ ] #4 Old state files without an agents field read as claude
+- [x] #1 init --agents writes only the chosen agents' configs
+- [x] #2 status and doctor report each wired agent
+- [x] #3 clean unregisters every wired agent
+- [x] #4 Old state files without an agents field read as claude
 <!-- AC:END -->

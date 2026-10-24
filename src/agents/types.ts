@@ -32,6 +32,8 @@ export interface Agent {
   configPath: string;
   hookCommand: string;
   sessionCommand: string;
+  /** Whether the project already uses this agent, so init wires it by default. */
+  detect(root: string): boolean;
   /** Throws SettingsError when the config file cannot be read safely. */
   wiring(root: string): Wiring;
   register(root: string): boolean;

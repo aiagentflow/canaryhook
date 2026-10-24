@@ -1,6 +1,6 @@
 import { existsSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { claude } from "../agents/index.js";
+import { AGENTS } from "../agents/index.js";
 import { SettingsError } from "../settings.js";
 import { isDecoyFile, readState, STATE_DIR } from "../state.js";
 
@@ -23,13 +23,17 @@ export function clean(root: string, options: { json: boolean; keepAlerts: boolea
       kept.push(decoy.path);
     }
   }
+  // Every agent, not only the ones recorded as wired: a hook left pointing at a
+  // removed install would fail open without saying so.
   let hookRemoved = false;
   let settingsProblem: string | null = null;
-  try {
-    hookRemoved = claude.unregister(root);
-  } catch (error) {
-    if (!(error instanceof SettingsError)) throw error;
-    settingsProblem = error.message;
+  for (const agent of AGENTS) {
+    try {
+      if (agent.unregister(root)) hookRemoved = true;
+    } catch (error) {
+      if (!(error instanceof SettingsError)) throw error;
+      settingsProblem ??= error.message;
+    }
   }
   if (!options.keepAlerts) rmSync(join(root, STATE_DIR), { recursive: true, force: true });
 
@@ -53,7 +57,7 @@ export function clean(root: string, options: { json: boolean; keepAlerts: boolea
     );
   }
   if (settingsProblem) process.stdout.write(`${settingsProblem}\n`);
-  else process.stdout.write(hookRemoved ? "Unregistered the PreToolUse hook.\n" : "No hook to unregister.\n");
+  else process.stdout.write(hookRemoved ? "Unregistered the hooks.\n" : "No hook to unregister.\n");
   process.stdout.write(
     options.keepAlerts ? `Kept ${STATE_DIR}/alerts.jsonl.\n` : `Removed ${STATE_DIR}/.\n`,
   );

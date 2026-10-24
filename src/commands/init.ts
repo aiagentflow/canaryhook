@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildDecoys } from "../canaries.js";
-import { claude } from "../agents/index.js";
+import { AGENTS, claude, type Agent } from "../agents/index.js";
 import { SettingsError } from "../settings.js";
 import { isDecoyFile, readState, writeState, STATE_DIR, type Decoy } from "../state.js";
 
@@ -23,7 +23,10 @@ function fail(message: string, json: boolean): number {
   return 1;
 }
 
-export function init(root: string, options: { json: boolean; commit: boolean; force: boolean }): number {
+export function init(
+  root: string,
+  options: { json: boolean; commit: boolean; force: boolean; agents?: Agent[] },
+): number {
   const existing = readState(root);
   if (existing && !options.force) {
     return fail(`canaryhook is already initialized in ${root}. Use --force to replant.`, options.json);
@@ -31,8 +34,13 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
 
   // Read the settings before planting anything, so a settings file canaryhook
   // cannot parse stops the run instead of leaving half an install behind.
+  // Without --agents, wire Claude Code plus any agent the project already
+  // uses, and keep whatever a previous init wired.
+  const previous = existing?.agents ?? [];
+  const agents =
+    options.agents ?? AGENTS.filter((agent) => agent.detect(root) || previous.includes(agent.name));
   try {
-    claude.wiring(root);
+    for (const agent of agents) agent.wiring(root);
   } catch (error) {
     if (error instanceof SettingsError) return fail(error.message, options.json);
     throw error;
@@ -63,12 +71,24 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
   }
 
   const decoys = built.map((b) => b.decoy);
-  const hookAdded = claude.register(root);
+  // An agent dropped from the list on a replant is unwired, so it is not left
+  // pointing at canaryhook without being reported anywhere.
+  for (const agent of AGENTS) {
+    if (agents.includes(agent)) continue;
+    try {
+      agent.unregister(root);
+    } catch (error) {
+      // A config canaryhook cannot read is not one it wrote to.
+      if (!(error instanceof SettingsError)) throw error;
+    }
+  }
+  const added = agents.map((agent) => agent.register(root));
   writeState(root, {
     version: 1,
     created: new Date().toISOString(),
     decoys,
     hookRegistered: true,
+    agents: agents.map((agent) => agent.name),
   });
 
   const ignored = options.commit ? false : updateGitignore(root, decoys);
@@ -78,8 +98,9 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
       `${JSON.stringify({
         ok: true,
         planted: decoys.map((d) => d.path),
-        hookRegistered: hookAdded,
+        hookRegistered: added.some(Boolean),
         settings: claude.configPath,
+        agents: agents.map((agent, i) => ({ name: agent.name, config: agent.configPath, registered: added[i] })),
         gitignoreUpdated: ignored,
       })}\n`,
     );
@@ -88,11 +109,14 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
 
   process.stdout.write(`Planted ${decoys.length} decoys:\n`);
   for (const decoy of decoys) process.stdout.write(`  ${decoy.path}  (${decoy.kind})\n`);
-  process.stdout.write(
-    hookAdded
-      ? `\nRegistered the PreToolUse, PostToolUse and SessionStart hooks in ${claude.configPath}.\n`
-      : `\nThe hooks were already registered in ${claude.configPath}.\n`,
-  );
+  process.stdout.write("\n");
+  agents.forEach((agent, i) => {
+    process.stdout.write(
+      added[i]
+        ? `Registered the hooks for ${agent.label} in ${agent.configPath}.\n`
+        : `The hooks for ${agent.label} were already registered in ${agent.configPath}.\n`,
+    );
+  });
   if (ignored) process.stdout.write("Added the decoys and .canaryhook/ to .gitignore.\n");
   if (options.commit) process.stdout.write("Left .gitignore alone, as --commit was passed.\n");
   process.stdout.write(

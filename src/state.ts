@@ -19,6 +19,8 @@ export interface State {
   created: string;
   decoys: Decoy[];
   hookRegistered: boolean;
+  /** Names of the agents whose hooks init wired; absent in 0.3.0 and earlier, which meant Claude Code. */
+  agents?: string[];
 }
 
 export interface Alert {

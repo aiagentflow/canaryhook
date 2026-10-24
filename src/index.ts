@@ -6,6 +6,7 @@ import { init } from "./commands/init.js";
 import { status } from "./commands/status.js";
 import { verify } from "./commands/verify.js";
 import { sessionStart } from "./commands/session.js";
+import { AGENTS, agentNamed, claude, parseAgents } from "./agents/index.js";
 import { runHook } from "./hook.js";
 import { findRoot } from "./state.js";
 import { VERSION } from "./version.js";
@@ -27,6 +28,8 @@ Commands
 
 Options
   --json           Machine-readable output
+  --agents <list>  init: agents to wire, comma-separated (claude); default is
+                   Claude Code plus any agent the project already uses
   --commit         init: track the decoys in git instead of ignoring them
   --force          init: replant over an existing setup
   --keep-alerts    clean: keep .canaryhook/alerts.jsonl
@@ -38,7 +41,7 @@ Docs: https://github.com/aiagentflow/canaryhook
 
 /** Flags each command accepts beyond --json, -h and -v. */
 const FLAGS: Record<string, string[]> = {
-  init: ["--commit", "--force"],
+  init: ["--commit", "--force", "--agents"],
   clean: ["--keep-alerts"],
   status: [],
   alerts: [],
@@ -55,13 +58,31 @@ function unknownArg(command: string, args: string[]): string | null {
   const allowed = FLAGS[command];
   if (allowed === undefined) return null;
   const known = new Set([...allowed, "--json", "-h", "--help", "-v", "--version"]);
-  return args.find((arg) => (arg.startsWith("-") ? !known.has(arg) : arg !== command)) ?? null;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    const flag = arg.split("=")[0];
+    if (VALUE_FLAGS.has(flag) && known.has(flag)) {
+      if (!arg.includes("=")) i += 1; // the value is the next argument
+      continue;
+    }
+    if (arg.startsWith("-") ? !known.has(arg) : arg !== command) return arg;
+  }
+  return null;
+}
+
+/** Flags that take a value, as `--flag value` or `--flag=value`. */
+const VALUE_FLAGS = new Set(["--agents", "--agent"]);
+
+function valueOf(args: string[], flag: string): string | undefined {
+  const at = args.findIndex((arg) => arg === flag || arg.startsWith(`${flag}=`));
+  if (at < 0) return undefined;
+  return args[at].includes("=") ? args[at].slice(flag.length + 1) : (args[at + 1] ?? "");
 }
 
 async function main(argv: string[]): Promise<number> {
   const args = argv.slice(2);
   const has = (flag: string) => args.includes(flag);
-  const command = args.find((a) => !a.startsWith("-"));
+  const command = args.find((a, i) => !a.startsWith("-") && !(i > 0 && VALUE_FLAGS.has(args[i - 1])));
   // init plants where it is run; every other command works on the nearest
   // initialized project, so running one from a subdirectory sees the real state.
   const root = command === "init" ? process.cwd() : (findRoot(process.cwd()) ?? process.cwd());
@@ -82,13 +103,27 @@ async function main(argv: string[]): Promise<number> {
     return 1;
   }
 
+  // The hook commands never fail: an unknown --agent falls back to Claude Code.
+  const hookAgent = agentNamed(valueOf(args, "--agent") ?? claude.name) ?? claude;
+
   switch (command) {
     case "hook":
-      return runHook();
+      return runHook(hookAgent);
     case "session-start":
-      return sessionStart(root);
-    case "init":
-      return init(root, { json, commit: has("--commit"), force: has("--force") });
+      return sessionStart(root, hookAgent);
+    case "init": {
+      const list = valueOf(args, "--agents");
+      const parsed = list === undefined ? undefined : parseAgents(list);
+      if (parsed && "unknown" in parsed) {
+        process.stderr.write(`Unknown agent: ${parsed.unknown}. Known agents: ${AGENTS.map((a) => a.name).join(", ")}.\n`);
+        return 1;
+      }
+      if (parsed && parsed.agents.length === 0) {
+        process.stderr.write("--agents needs at least one agent.\n");
+        return 1;
+      }
+      return init(root, { json, commit: has("--commit"), force: has("--force"), agents: parsed?.agents });
+    }
     case "status":
       return status(root, { json });
     case "alerts":

@@ -16,6 +16,8 @@ export const claude: Agent = {
   configPath: SETTINGS_PATH,
   hookCommand: HOOK_COMMAND,
   sessionCommand: SESSION_COMMAND,
+  // Claude Code is always wired by default, whether or not .claude/ exists yet.
+  detect: () => true,
 
   wiring(root) {
     const [pre, session, post] = registeredSpecs(root, SETTINGS_PATH, SPECS);
