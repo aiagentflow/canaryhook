@@ -1,9 +1,10 @@
 ---
 id: TASK-3
 title: Support Cursor
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 05:41'
+updated_date: '2026-10-24 05:50'
 labels:
   - multi-agent
 dependencies:
@@ -22,8 +23,8 @@ Register preToolUse, postToolUse and sessionStart in .cursor/hooks.json (version
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A read of a decoy through Cursor's preToolUse is denied and recorded
-- [ ] #2 A clean call prints an explicit allow
-- [ ] #3 postToolUse catches a canary in tool_output
-- [ ] #4 Removing the hook from .cursor/hooks.json trips tamper
+- [x] #1 A read of a decoy through Cursor's preToolUse is denied and recorded
+- [x] #2 A clean call prints an explicit allow
+- [x] #3 postToolUse catches a canary in tool_output
+- [x] #4 Removing the hook from .cursor/hooks.json trips tamper
 <!-- AC:END -->

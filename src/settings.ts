@@ -17,7 +17,7 @@ interface MatcherGroup {
   [key: string]: unknown;
 }
 
-interface Settings {
+export interface Settings {
   hooks?: Record<string, MatcherGroup[]>;
   [key: string]: unknown;
 }
@@ -41,7 +41,8 @@ export const SPECS: HookSpec[] = [
 /** Raised instead of silently replacing settings canaryhook cannot parse. */
 export class SettingsError extends Error {}
 
-function load(root: string, file: string): Settings {
+/** A JSON config file as an object; {} when it does not exist yet. */
+export function load(root: string, file: string): Settings {
   const path = join(root, file);
   if (!existsSync(path)) return {};
   let parsed: unknown;
@@ -59,7 +60,7 @@ function load(root: string, file: string): Settings {
   return parsed as Settings;
 }
 
-function save(root: string, file: string, settings: Settings): void {
+export function save(root: string, file: string, settings: Settings): void {
   mkdirSync(dirname(join(root, file)), { recursive: true });
   writeFileSync(join(root, file), `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }

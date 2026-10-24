@@ -30,6 +30,8 @@ export interface Agent {
   label: string;
   /** Project-relative file the hooks are registered in. */
   configPath: string;
+  /** Other config files that can switch the hooks off without holding them. */
+  alsoProtect?: string[];
   hookCommand: string;
   sessionCommand: string;
   /** Whether the project already uses this agent, so init wires it by default. */
