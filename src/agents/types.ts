@@ -14,8 +14,8 @@ export interface ToolCall {
 export interface Wiring {
   /** The hook that checks a call before it runs. */
   pre: boolean;
-  /** The hook that checks what a call returned. */
-  post: boolean;
+  /** The hook that checks what a call returned; null where the agent does not show hooks the output. */
+  post: boolean | null;
   /** The hook that reports past trips when a session starts. */
   session: boolean;
 }
