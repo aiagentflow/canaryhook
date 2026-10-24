@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { claude, type Agent } from "./agents/index.js";
+import { AGENTS, claude, type Agent } from "./agents/index.js";
 import { appendAlert, findRoot, readState, type Alert, type Decoy } from "./state.js";
 import { HOOK_COMMAND } from "./settings.js";
 import { STATE_DIR, STATE_FILE } from "./state.js";
@@ -174,8 +174,9 @@ const MUTATING = new Set(["rm", "unlink", "shred", "truncate", "mv", "cp", "ln",
 /** Commands that only change a file when told to edit it in place. */
 const IN_PLACE = new Set(["sed", "perl"]);
 
-/** Settings files Claude Code reads hooks from, where the hook can be switched off. */
-const SETTINGS_FILES = [".claude/settings.json", ".claude/settings.local.json"];
+/** Config files the agents read hooks from, where canaryhook's hook can be removed or switched off. */
+const HOOK_FILES = AGENTS.map((agent) => agent.configPath);
+const SETTINGS_FILES = [...HOOK_FILES, ...AGENTS.flatMap((agent) => agent.alsoProtect ?? [])];
 
 /** Fields the editing tools carry the new content in. */
 const WRITE_FIELDS = ["content", "new_string", "edits", "new_source"];
@@ -214,7 +215,9 @@ export function tampers(toolInput: unknown): string | null {
       !String(edit.new_string ?? "").includes(HOOK_COMMAND),
   );
   const rewritesWithout =
-    typeof fields.content === "string" && path.endsWith("settings.json") && !fields.content.includes(HOOK_COMMAND);
+    typeof fields.content === "string" &&
+    HOOK_FILES.some((file) => mentionsPath(path, file)) &&
+    !fields.content.includes(HOOK_COMMAND);
   if (dropsHook || rewritesWithout) return "tool call removes canaryhook's hook from the settings";
   return null;
 }
