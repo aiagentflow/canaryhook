@@ -7,6 +7,8 @@ read, then blocks and records the moment an agent reads one or lets a canary
 string leave the machine. It is a smoke detector for AI coding sessions: no
 model, no signatures, and close to zero false positives by construction.
 
+Works with Claude Code, Cursor, Codex CLI, Antigravity CLI and Gemini CLI.
+
 Part of the [aiagentflow](https://aiagentflow.dev) suite.
 Website: **[aiagentflow.dev/canaryhook](https://aiagentflow.dev/canaryhook)**
 
@@ -40,10 +42,42 @@ Or with Homebrew:
 brew install aiagentflow/tap/canaryhook
 ```
 
-`init` plants four decoys, registers `PreToolUse`, `PostToolUse` and
-`SessionStart` hooks in `.claude/settings.json` (merging with hooks you already
-have), and adds the decoys plus `.canaryhook/` to `.gitignore`. Upgrading from
-0.2.0, run `canaryhook init --force` to add the `PostToolUse` hook.
+`init` plants four decoys, registers canaryhook's hooks for each agent you use
+(merging with hooks you already have), and adds the decoys plus `.canaryhook/`
+to `.gitignore`. Upgrading from 0.2.0, run `canaryhook init --force` to add the
+`PostToolUse` hook.
+
+## Agents
+
+By default `init` wires Claude Code plus any agent the project already uses,
+judged by its config folder. Name them yourself with `--agents`:
+
+```bash
+canaryhook init --agents claude,cursor,codex
+```
+
+| Agent | `--agents` | Config file | Before a call | After a call | Session start |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | `claude` | `.claude/settings.json` | `PreToolUse` | `PostToolUse` | `SessionStart` |
+| Cursor | `cursor` | `.cursor/hooks.json` | `preToolUse` | `postToolUse` | `sessionStart` |
+| Codex CLI | `codex` | `.codex/hooks.json` | `PreToolUse` | `PostToolUse` | `SessionStart` |
+| Antigravity CLI | `antigravity` | `.agents/hooks.json` | `PreToolUse` | not supported | `SessionStart` |
+| Gemini CLI | `gemini` | `.gemini/settings.json` | `BeforeTool` | `AfterTool` | `SessionStart` |
+
+Per agent:
+
+- **Codex CLI** runs project hooks only once you trust them. After `init`, run
+  `/hooks` in Codex and approve canaryhook's; until then nothing is watched.
+- **Antigravity CLI** does not pass a tool's output to its hooks, so the output
+  path is not available there. A sweep like `grep -r AKIA .` is only caught
+  once a canary string shows up in a later call.
+- **Gemini CLI** hides a result that holds a canary from the model, so on that
+  agent the output path also keeps the value out of the agent's context.
+- **Cursor** blocks any call whose permission hook prints nothing, so the
+  Cursor hook always answers explicitly, allowing a clean call.
+
+`status` and `doctor` report every wired agent, and `clean` removes canaryhook's
+hooks from all of them.
 
 ## Commands
 
@@ -56,8 +90,9 @@ canaryhook verify    # exit non-zero if anything tripped (for CI)
 canaryhook clean     # remove decoys, unregister the hook
 ```
 
-Flags: `--json` on every command, `--commit` to track decoys in git instead of
-ignoring them, `--force` to replant, `--keep-alerts` on clean.
+Flags: `--json` on every command, `--agents` on init to choose the agents,
+`--commit` to track decoys in git instead of ignoring them, `--force` to
+replant, `--keep-alerts` on clean.
 
 ## Why
 
@@ -104,7 +139,8 @@ Four checks then run on every tool call:
   blocked, but it is recorded and the agent is told the value is fake.
 - **Tamper path.** The hook trips when a call would blind canaryhook: deleting
   or rewriting `.canaryhook/`, running `canaryhook clean`, removing the hook
-  from `.claude/settings.json`, or setting `disableAllHooks`. Otherwise an
+  from an agent's config file, or switching hooks off there (`disableAllHooks`
+  in Claude Code, `hooks = false` in Codex). Otherwise an
   agent that tripped a decoy could erase the record and carry on. You can still
   do all of these yourself from a terminal, where no hook runs.
 

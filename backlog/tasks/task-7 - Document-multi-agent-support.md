@@ -1,9 +1,10 @@
 ---
 id: TASK-7
 title: Document multi-agent support
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 05:41'
+updated_date: '2026-10-24 05:58'
 labels:
   - multi-agent
 dependencies:
@@ -23,6 +24,6 @@ README: which agents are supported, the --agents flag, the per-agent config file
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 README lists every supported agent and its config file
-- [ ] #2 Caveats are stated per agent
+- [x] #1 README lists every supported agent and its config file
+- [x] #2 Caveats are stated per agent
 <!-- AC:END -->
