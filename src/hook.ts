@@ -1,16 +1,8 @@
 import { basename } from "node:path";
+import { claude, type Agent } from "./agents/index.js";
 import { appendAlert, findRoot, readState, type Alert, type Decoy } from "./state.js";
 import { HOOK_COMMAND } from "./settings.js";
 import { STATE_DIR, STATE_FILE } from "./state.js";
-
-interface HookInput {
-  session_id?: string;
-  cwd?: string;
-  hook_event_name?: string;
-  tool_name?: string;
-  tool_input?: unknown;
-  tool_response?: unknown;
-}
 
 interface Hit {
   reason: Alert["reason"];
@@ -345,29 +337,59 @@ export function inspectOutput(decoys: Decoy[], toolResponse: unknown): Hit | nul
   return null;
 }
 
-export async function runHook(): Promise<number> {
-  let input: HookInput;
+/** What canaryhook tells the agent about a trip; the agent decides how it is shown. */
+function tripReason(hit: Hit, phase: "pre" | "post"): string {
+  if (phase === "post") {
+    return (
+      `canaryhook: ${hit.detail}. That file is a tripwire planted to detect credential ` +
+      `hunting, and its contents are fake. This was recorded in ${STATE_DIR}/alerts.jsonl. ` +
+      `Do not use or repeat the value; tell the user instead.`
+    );
+  }
+  if (hit.reason === "tamper") {
+    return (
+      `canaryhook: ${hit.detail}. Its record and hook are protected from agent ` +
+      `changes, so this call was blocked and recorded in ${STATE_DIR}/alerts.jsonl. ` +
+      `If the user wants canaryhook changed or removed, they can run it themselves ` +
+      `from a terminal. Do not retry it; tell the user instead.`
+    );
+  }
+  return (
+    `canaryhook: ${hit.detail}. It is a tripwire planted to detect credential ` +
+    `hunting, not real project data. This call was blocked and recorded in ` +
+    `${STATE_DIR}/alerts.jsonl. Do not retry it; tell the user instead.`
+  );
+}
+
+function write(out: string): void {
+  if (out.length > 0) process.stdout.write(`${out}\n`);
+}
+
+export async function runHook(agent: Agent = claude): Promise<number> {
+  let call;
   try {
-    input = JSON.parse(await readStdin()) as HookInput;
+    call = agent.parse(JSON.parse(await readStdin()));
   } catch {
-    // Malformed input must never block a real tool call.
+    call = null;
+  }
+  // Malformed input must never block a real tool call.
+  if (!call) {
+    write(agent.pass("pre"));
     return 0;
   }
 
-  // The agent's cwd may be a subdirectory of the project; fall back to the
-  // directory Claude Code was started in.
-  const root = [input.cwd, process.env.CLAUDE_PROJECT_DIR, process.cwd()]
-    .map((dir) => (dir ? findRoot(dir) : null))
-    .find((dir) => dir !== null);
-  if (!root) return 0;
-  const state = readState(root);
-  if (!state) return 0;
+  const root = call.dirs.map((dir) => (dir ? findRoot(dir) : null)).find((dir) => dir !== null);
+  const state = root ? readState(root) : null;
+  const hit = !state
+    ? null
+    : call.phase === "post"
+      ? inspectOutput(state.decoys, call.output)
+      : inspect(state.decoys, call.input);
+  if (!root || !hit) {
+    write(agent.pass(call.phase));
+    return 0;
+  }
 
-  const after = input.hook_event_name === "PostToolUse";
-  const hit = after ? inspectOutput(state.decoys, input.tool_response) : inspect(state.decoys, input.tool_input);
-  if (!hit) return 0;
-
-  const tool = input.tool_name ?? "unknown";
   // canaryhook doctor fires a real payload through this command to prove the
   // hook is wired, and must not leave a trip in the record for it.
   if (process.env.CANARYHOOK_DRY_RUN !== "1") {
@@ -375,41 +397,13 @@ export async function runHook(): Promise<number> {
       at: new Date().toISOString(),
       reason: hit.reason,
       decoy: hit.decoy,
-      tool,
+      tool: call.tool,
       detail: hit.detail,
-      sessionId: input.session_id,
+      sessionId: call.sessionId,
     });
   }
 
-  if (after) {
-    process.stdout.write(
-      `${JSON.stringify({
-        decision: "block",
-        reason:
-          `canaryhook: ${hit.detail}. That file is a tripwire planted to detect credential ` +
-          `hunting, and its contents are fake. This was recorded in ${STATE_DIR}/alerts.jsonl. ` +
-          `Do not use or repeat the value; tell the user instead.`,
-      })}\n`,
-    );
-    return 0;
-  }
-
-  process.stdout.write(
-    `${JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason:
-          hit.reason === "tamper"
-            ? `canaryhook: ${hit.detail}. Its record and hook are protected from agent ` +
-              `changes, so this call was blocked and recorded in ${STATE_DIR}/alerts.jsonl. ` +
-              `If the user wants canaryhook changed or removed, they can run it themselves ` +
-              `from a terminal. Do not retry it; tell the user instead.`
-            : `canaryhook: ${hit.detail}. It is a tripwire planted to detect credential ` +
-              `hunting, not real project data. This call was blocked and recorded in ` +
-              `${STATE_DIR}/alerts.jsonl. Do not retry it; tell the user instead.`,
-      },
-    })}\n`,
-  );
+  const reason = tripReason(hit, call.phase);
+  write(call.phase === "post" ? agent.flag(reason) : agent.deny(reason));
   return 0;
 }

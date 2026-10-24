@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { HOOK_COMMAND, isRegistered, SettingsError, SETTINGS_PATH } from "../settings.js";
+import { claude, type Agent } from "../agents/index.js";
+import { SettingsError } from "../settings.js";
 import { isDecoyFile, readState, type Decoy } from "../state.js";
 
 interface Check {
@@ -10,19 +11,13 @@ interface Check {
 
 /**
  * Runs the hook command exactly as the agent would, with a payload on stdin,
- * and returns the permission decision it printed. CANARYHOOK_DRY_RUN keeps the
- * probe out of the alert record.
+ * and returns what the agent would make of its answer. CANARYHOOK_DRY_RUN
+ * keeps the probe out of the alert record.
  */
-function askHook(root: string, toolInput: unknown): { decision: string | null; error: string | null } {
-  const payload = JSON.stringify({
-    session_id: "canaryhook-doctor",
+function askHook(agent: Agent, root: string, path: string): { decision: string | null; error: string | null } {
+  const run = spawnSync(agent.hookCommand, {
     cwd: root,
-    tool_name: "Read",
-    tool_input: toolInput,
-  });
-  const run = spawnSync(HOOK_COMMAND, {
-    cwd: root,
-    input: payload,
+    input: JSON.stringify(agent.probe(root, path)),
     shell: true,
     encoding: "utf8",
     env: { ...process.env, CANARYHOOK_DRY_RUN: "1" },
@@ -32,13 +27,9 @@ function askHook(root: string, toolInput: unknown): { decision: string | null; e
     return { decision: null, error: `exited ${run.status}: ${(run.stderr ?? "").trim()}` };
   }
   const out = (run.stdout ?? "").trim();
-  if (out.length === 0) return { decision: null, error: null };
-  try {
-    const parsed = JSON.parse(out) as { hookSpecificOutput?: { permissionDecision?: string } };
-    return { decision: parsed.hookSpecificOutput?.permissionDecision ?? null, error: null };
-  } catch {
-    return { decision: null, error: `hook printed something that is not JSON: ${out.slice(0, 120)}` };
-  }
+  const decision = agent.verdict(out);
+  if (decision === null) return { decision: null, error: `hook printed something it should not: ${out.slice(0, 120)}` };
+  return { decision, error: null };
 }
 
 function decoyChecks(root: string, decoys: Decoy[]): Check {
@@ -53,7 +44,7 @@ function decoyChecks(root: string, decoys: Decoy[]): Check {
   };
 }
 
-export function doctor(root: string, options: { json: boolean }): number {
+export function doctor(root: string, options: { json: boolean }, agent: Agent = claude): number {
   const state = readState(root);
   if (!state) {
     const message = "canaryhook is not initialized here. Run: canaryhook init";
@@ -64,39 +55,38 @@ export function doctor(root: string, options: { json: boolean }): number {
 
   const checks: Check[] = [decoyChecks(root, state.decoys)];
 
-  let registered = false;
   try {
-    registered = isRegistered(root);
+    const registered = agent.wiring(root).pre;
     checks.push({
       name: "hook registered",
       ok: registered,
-      detail: registered ? `${HOOK_COMMAND} in ${SETTINGS_PATH}` : `not found in ${SETTINGS_PATH}`,
+      detail: registered ? `${agent.hookCommand} in ${agent.configPath}` : `not found in ${agent.configPath}`,
     });
   } catch (error) {
     if (!(error instanceof SettingsError)) throw error;
     checks.push({ name: "hook registered", ok: false, detail: error.message });
   }
 
-  const trip = askHook(root, { file_path: state.decoys[0]?.path ?? ".env.backup" });
+  const trip = askHook(agent, root, state.decoys[0]?.path ?? ".env.backup");
   checks.push({
     name: "hook denies a decoy read",
     ok: trip.decision === "deny",
     detail:
       trip.error !== null
-        ? `could not run ${HOOK_COMMAND}: ${trip.error}`
+        ? `could not run ${agent.hookCommand}: ${trip.error}`
         : trip.decision === "deny"
           ? "a planted read came back denied"
           : "the hook ran but let a decoy read through",
   });
 
-  const quiet = askHook(root, { file_path: "src/index.ts" });
+  const quiet = askHook(agent, root, "src/index.ts");
   checks.push({
     name: "hook passes normal calls",
-    ok: quiet.error === null && quiet.decision === null,
+    ok: quiet.error === null && quiet.decision === "pass",
     detail:
       quiet.error !== null
-        ? `could not run ${HOOK_COMMAND}: ${quiet.error}`
-        : quiet.decision === null
+        ? `could not run ${agent.hookCommand}: ${quiet.error}`
+        : quiet.decision === "pass"
           ? "an ordinary read was left alone"
           : `an ordinary read came back ${quiet.decision}`,
   });
@@ -114,7 +104,7 @@ export function doctor(root: string, options: { json: boolean }): number {
   process.stdout.write(
     ok
       ? "\nThe hook is wired and firing.\n"
-      : `\nSomething is wrong. If ${HOOK_COMMAND} cannot run, the hook fails open and\n` +
+      : `\nSomething is wrong. If ${agent.hookCommand} cannot run, the hook fails open and\n` +
           "nothing is being watched. Reinstall canaryhook, or run canaryhook init --force.\n",
   );
   return ok ? 0 : 1;

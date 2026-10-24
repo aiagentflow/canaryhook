@@ -1,9 +1,10 @@
 ---
 id: TASK-1
 title: Refactor the Claude Code wiring into an agent adapter
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 05:41'
+updated_date: '2026-10-24 05:44'
 labels:
   - multi-agent
 dependencies: []
@@ -19,7 +20,7 @@ Move the Claude-specific parts (settings path, hook registration, payload parsin
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 src/agents/claude.ts holds everything Claude-specific
-- [ ] #2 hook, session-start, init, status, doctor and clean go through the adapter
-- [ ] #3 Existing tests pass unchanged
+- [x] #1 src/agents/claude.ts holds everything Claude-specific
+- [x] #2 hook, session-start, init, status, doctor and clean go through the adapter
+- [x] #3 Existing tests pass unchanged
 <!-- AC:END -->

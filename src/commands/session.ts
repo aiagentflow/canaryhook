@@ -1,3 +1,4 @@
+import { claude, type Agent } from "../agents/index.js";
 import { readAlerts, STATE_DIR, type Alert } from "../state.js";
 
 const RECENT = 3;
@@ -21,18 +22,11 @@ function summarize(alerts: Alert[]): string {
  * session. Silent when the record is clean, and never fails loudly: a reporting
  * problem must not get in the way of a session.
  */
-export function sessionStart(root: string): number {
+export function sessionStart(root: string, agent: Agent = claude): number {
   try {
     const alerts = readAlerts(root);
     if (alerts.length === 0) return 0;
-    process.stdout.write(
-      `${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "SessionStart",
-          additionalContext: summarize(alerts),
-        },
-      })}\n`,
-    );
+    process.stdout.write(`${agent.report(summarize(alerts))}\n`);
   } catch {
     return 0;
   }

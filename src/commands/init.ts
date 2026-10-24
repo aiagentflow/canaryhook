@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildDecoys } from "../canaries.js";
-import { isRegistered, register, SettingsError, SETTINGS_PATH } from "../settings.js";
+import { claude } from "../agents/index.js";
+import { SettingsError } from "../settings.js";
 import { isDecoyFile, readState, writeState, STATE_DIR, type Decoy } from "../state.js";
 
 const IGNORE_MARKER = "# canaryhook decoys";
@@ -31,7 +32,7 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
   // Read the settings before planting anything, so a settings file canaryhook
   // cannot parse stops the run instead of leaving half an install behind.
   try {
-    isRegistered(root);
+    claude.wiring(root);
   } catch (error) {
     if (error instanceof SettingsError) return fail(error.message, options.json);
     throw error;
@@ -62,7 +63,7 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
   }
 
   const decoys = built.map((b) => b.decoy);
-  const hookAdded = register(root);
+  const hookAdded = claude.register(root);
   writeState(root, {
     version: 1,
     created: new Date().toISOString(),
@@ -78,7 +79,7 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
         ok: true,
         planted: decoys.map((d) => d.path),
         hookRegistered: hookAdded,
-        settings: SETTINGS_PATH,
+        settings: claude.configPath,
         gitignoreUpdated: ignored,
       })}\n`,
     );
@@ -89,8 +90,8 @@ export function init(root: string, options: { json: boolean; commit: boolean; fo
   for (const decoy of decoys) process.stdout.write(`  ${decoy.path}  (${decoy.kind})\n`);
   process.stdout.write(
     hookAdded
-      ? `\nRegistered the PreToolUse, PostToolUse and SessionStart hooks in ${SETTINGS_PATH}.\n`
-      : `\nThe hooks were already registered in ${SETTINGS_PATH}.\n`,
+      ? `\nRegistered the PreToolUse, PostToolUse and SessionStart hooks in ${claude.configPath}.\n`
+      : `\nThe hooks were already registered in ${claude.configPath}.\n`,
   );
   if (ignored) process.stdout.write("Added the decoys and .canaryhook/ to .gitignore.\n");
   if (options.commit) process.stdout.write("Left .gitignore alone, as --commit was passed.\n");
