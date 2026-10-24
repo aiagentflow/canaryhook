@@ -1,9 +1,10 @@
 ---
 id: TASK-6
 title: Support Gemini CLI
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 05:41'
+updated_date: '2026-10-24 05:56'
 labels:
   - multi-agent
 dependencies:
@@ -22,7 +23,7 @@ Gemini CLI is now for paid API keys and enterprise only, but still in use. Regis
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A read_file of a decoy is denied and recorded
-- [ ] #2 AfterTool catches a canary in tool_response.llmContent
-- [ ] #3 Removing the hook from .gemini/settings.json trips tamper
+- [x] #1 A read_file of a decoy is denied and recorded
+- [x] #2 AfterTool catches a canary in tool_response.llmContent
+- [x] #3 Removing the hook from .gemini/settings.json trips tamper
 <!-- AC:END -->
